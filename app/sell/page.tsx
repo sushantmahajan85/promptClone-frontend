@@ -1,8 +1,13 @@
 "use client";
 
 import { BrandLogo } from "@/components/brand-logo";
+import { NavAuth } from "@/components/nav-auth";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+
+import { listingsApi } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 const STEPS = [
   { id: 1, label: "DETAILS" },
@@ -29,18 +34,27 @@ function stepCircleClasses(active: boolean, done: boolean): string {
 }
 
 export default function SellPage() {
+  const { token, user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const uploadFieldId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(1);
   const [skillName, setSkillName] = useState("");
+  const [shortDescription, setShortDescription] = useState("");
+  const [priceInput, setPriceInput] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [supportedAgents, setSupportedAgents] = useState<string[]>([]);
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   const agentPickerRef = useRef<HTMLDivElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState("");
+  const [publishedId, setPublishedId] = useState("");
 
   const previewTitle = skillName.trim() || "Vision Parser Pro";
+  const priceCents = Math.round(parseFloat(priceInput || "0") * 100);
 
   const onBrowseClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -71,6 +85,48 @@ export default function SellPage() {
   const removeSupportedAgent = useCallback((agent: string) => {
     setSupportedAgents((prev) => prev.filter((a) => a !== agent));
   }, []);
+
+  const handleFilePicked = useCallback((file: File | undefined | null) => {
+    if (file) setSelectedFile(file);
+  }, []);
+
+  const handlePublish = useCallback(async () => {
+    if (!token) {
+      router.push("/auth/login");
+      return;
+    }
+    setPublishError("");
+    setPublishing(true);
+    try {
+      const { listing } = await listingsApi.create(token, {
+        title: skillName.trim() || "Untitled Skill",
+        shortDescription: shortDescription.trim(),
+        price: priceCents,
+        pricingModel: "one-time",
+        llmCompatibility: supportedAgents,
+        tags,
+        status: "draft",
+      });
+      if (selectedFile) {
+        await listingsApi.upload(token, listing._id, selectedFile);
+      }
+      await listingsApi.update(token, listing._id, { status: "pending-review" });
+      setPublishedId(listing.listingHashId);
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : "Publish failed.");
+    } finally {
+      setPublishing(false);
+    }
+  }, [
+    token,
+    router,
+    skillName,
+    shortDescription,
+    priceCents,
+    supportedAgents,
+    tags,
+    selectedFile,
+  ]);
 
   useEffect(() => {
     if (!agentMenuOpen) return;
@@ -110,29 +166,7 @@ export default function SellPage() {
             </button>
           </nav>
           <div className="ml-auto flex shrink-0 items-center gap-3 md:ml-0">
-            <button
-              type="button"
-              className="text-[#5c6178]"
-              aria-label="Terminal"
-            >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-            </button>
-            <div
-              className="h-8 w-8 shrink-0 rounded-full border border-[#d9dce7] bg-[#e8eaf2]"
-              aria-hidden
-            />
+            <NavAuth />
           </div>
         </div>
       </header>
@@ -189,6 +223,37 @@ export default function SellPage() {
                   placeholder="e.g. vision_parser_pro_"
                   className="mt-2 w-full border border-[#e5e7eb] bg-white px-3 py-2.5 font-mono text-sm text-[#0f1222] outline-none placeholder:text-[#b4b8c9] focus:border-[#2563eb]/50"
                 />
+              </label>
+              <label className="mt-4 block">
+                <span className="text-[10px] font-bold tracking-[0.12em] text-[#6b7280]">
+                  SHORT DESCRIPTION
+                </span>
+                <input
+                  type="text"
+                  value={shortDescription}
+                  onChange={(e) => setShortDescription(e.target.value)}
+                  placeholder="One-line summary of what this skill does"
+                  className="mt-2 w-full border border-[#e5e7eb] bg-white px-3 py-2.5 font-mono text-sm text-[#0f1222] outline-none placeholder:text-[#b4b8c9] focus:border-[#2563eb]/50"
+                />
+              </label>
+              <label className="mt-4 block">
+                <span className="text-[10px] font-bold tracking-[0.12em] text-[#6b7280]">
+                  PRICE (USD)
+                </span>
+                <div className="relative mt-2">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm text-[#9aa0b5]">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={priceInput}
+                    onChange={(e) => setPriceInput(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full border border-[#e5e7eb] bg-white py-2.5 pl-7 pr-3 font-mono text-sm text-[#0f1222] outline-none placeholder:text-[#b4b8c9] focus:border-[#2563eb]/50"
+                  />
+                </div>
               </label>
               <label className="mt-4 block">
                 <span className="text-[10px] font-bold tracking-[0.12em] text-[#6b7280]">
@@ -359,7 +424,7 @@ export default function SellPage() {
                 type="file"
                 className="sr-only"
                 accept=".zip,.md,application/zip"
-                onChange={() => {}}
+                onChange={(e) => handleFilePicked(e.target.files?.[0])}
               />
               <section
                 aria-label="Skill artifact drop zone"
@@ -376,6 +441,7 @@ export default function SellPage() {
                 onDrop={(e) => {
                   e.preventDefault();
                   setDragOver(false);
+                  handleFilePicked(e.dataTransfer.files?.[0]);
                 }}
               >
                 <label
@@ -403,6 +469,11 @@ export default function SellPage() {
                     Drag &amp; drop the .zip or folder containing your logic,
                     config, and manifest.
                   </p>
+                  {selectedFile && (
+                    <p className="mt-3 font-mono text-[11px] text-[#16a34a]">
+                      ✓ {selectedFile.name}
+                    </p>
+                  )}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -523,58 +594,118 @@ const out = await skill.run({ raw_payload, schema_id });`}
               Your skill stays private until you publish. Double-check the
               metadata and artifact summary below.
             </p>
-            <dl className="mt-8 space-y-4 border-t border-[#e5e7eb] pt-6 text-sm">
-              <div>
-                <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
-                  SKILL NAME
-                </dt>
-                <dd className="mt-1 font-mono text-[#0f1222]">
-                  {skillName.trim() || "— (not set)"}
-                </dd>
+            {publishedId ? (
+              <div className="mt-8 border border-[#d1fae5] bg-[#ecfdf5] p-6 text-center">
+                <p className="font-mono text-[10px] tracking-[0.2em] text-[#16a34a]">
+                  [ PUBLISHED ]
+                </p>
+                <p className="mt-2 text-lg font-semibold text-[#0f1222]">
+                  Skill submitted for review
+                </p>
+                <p className="mt-2 text-sm text-[#5c6178]">
+                  Your listing{" "}
+                  <span className="font-mono text-[#0f1222]">
+                    #{publishedId}
+                  </span>{" "}
+                  is now pending review. It will become visible once approved.
+                </p>
+                <Link
+                  href="/explore"
+                  className="mt-6 inline-block border border-black bg-black px-6 py-2.5 text-sm font-semibold text-white"
+                >
+                  Back to Marketplace
+                </Link>
               </div>
-              <div>
-                <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
-                  DOCUMENTATION
-                </dt>
-                <dd className="mt-1 text-[#3d4459]">
-                  skills.md detected — manifest parsing complete (preview
-                  shown in step 1).
-                </dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
-                  TAGS
-                </dt>
-                <dd className="mt-1 text-[#3d4459]">
-                  {tags.length > 0 ? tags.join(", ") : "— (not set)"}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
-                  SUPPORTED AGENTS
-                </dt>
-                <dd className="mt-1 text-[#3d4459]">
-                  {supportedAgents.length > 0
-                    ? supportedAgents.join(", ")
-                    : "— (not set)"}
-                </dd>
-              </div>
-            </dl>
-            <div className="mt-8 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:flex-wrap">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="w-full border border-[#e5e7eb] bg-white px-6 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] sm:w-auto"
-              >
-                ← Back to details
-              </button>
-              <button
-                type="button"
-                className="w-full border border-black bg-black px-6 py-2.5 text-sm font-semibold text-white sm:w-auto"
-              >
-                Publish to registry
-              </button>
-            </div>
+            ) : (
+              <>
+                <dl className="mt-8 space-y-4 border-t border-[#e5e7eb] pt-6 text-sm">
+                  <div>
+                    <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
+                      SKILL NAME
+                    </dt>
+                    <dd className="mt-1 font-mono text-[#0f1222]">
+                      {skillName.trim() || "— (not set)"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
+                      SHORT DESCRIPTION
+                    </dt>
+                    <dd className="mt-1 text-[#3d4459]">
+                      {shortDescription.trim() || "— (not set)"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
+                      PRICE
+                    </dt>
+                    <dd className="mt-1 font-mono text-[#0f1222]">
+                      {priceInput ? `$${parseFloat(priceInput).toFixed(2)}` : "— (not set)"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
+                      FILE
+                    </dt>
+                    <dd className="mt-1 font-mono text-[#3d4459]">
+                      {selectedFile ? selectedFile.name : "— (no file selected)"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
+                      TAGS
+                    </dt>
+                    <dd className="mt-1 text-[#3d4459]">
+                      {tags.length > 0 ? tags.join(", ") : "— (not set)"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
+                      SUPPORTED AGENTS
+                    </dt>
+                    <dd className="mt-1 text-[#3d4459]">
+                      {supportedAgents.length > 0
+                        ? supportedAgents.join(", ")
+                        : "— (not set)"}
+                    </dd>
+                  </div>
+                </dl>
+
+                {publishError && (
+                  <p className="mt-4 border border-red-200 bg-red-50 px-3 py-2 font-mono text-xs text-red-700">
+                    {publishError}
+                  </p>
+                )}
+
+                {!authLoading && !user && (
+                  <p className="mt-4 border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                    You must{" "}
+                    <Link href="/auth/login" className="font-medium underline">
+                      sign in
+                    </Link>{" "}
+                    to publish a skill.
+                  </p>
+                )}
+
+                <div className="mt-8 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="w-full border border-[#e5e7eb] bg-white px-6 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] sm:w-auto"
+                  >
+                    ← Back to details
+                  </button>
+                  <button
+                    type="button"
+                    disabled={publishing || (!authLoading && !user)}
+                    onClick={handlePublish}
+                    className="w-full border border-black bg-black px-6 py-2.5 text-sm font-semibold text-white disabled:opacity-60 sm:w-auto"
+                  >
+                    {publishing ? "Publishing…" : "Publish to registry"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </main>

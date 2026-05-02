@@ -1,45 +1,32 @@
 import { BrandLogo } from "@/components/brand-logo";
 import Link from "next/link";
+import { type ApiListing, formatPrice } from "@/lib/api";
 
-export default function Home() {
-  const featuredSkills = [
-    {
-      title: "Semantic Syntax Refiner",
-      description:
-        "High-fidelity intent extraction from nested JSON structures.",
-    },
-    {
-      title: "Edge VotingBundle",
-      description: "Pre-trained routers for real-time object classification.",
-    },
-    {
-      title: "CUDA Conv Mapper",
-      description:
-        "Dynamic VRAM allocation for heterogeneous GPU clusters.",
-    },
-    {
-      title: "Prompt Injection Shield",
-      description: "Continuously learns defensive prompt patterns.",
-    },
-    {
-      title: "Fast-Embed Engine",
-      description:
-        "Highly optimized embedding generator for 140+ pipelines.",
-    },
-    {
-      title: "Stream-Token Quantizer",
-      description: "On-the-fly quantization for post-training LLMs.",
-    },
-  ];
+async function getFeaturedListings(): Promise<ApiListing[]> {
+  const base = process.env.NEXT_PUBLIC_API_URL ?? "";
+  if (!base) return [];
+  try {
+    const res = await fetch(`${base}/api/listings?limit=6&sortBy=newest`, {
+      cache: "no-store",
+    });
+    const data = await res.json();
+    return data.success ? (data.listings as ApiListing[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export default async function Home() {
+  const featuredListings = await getFeaturedListings();
 
   return (
     <main className="bg-white text-[#0f1222]">
-      <section className="relative mx-auto max-w-6xl overflow-hidden px-4 pt-6 pb-16 sm:px-6 sm:pt-8 sm:pb-20">
+      <section className="relative overflow-hidden pt-6 pb-16 sm:pt-8 sm:pb-20">
         <div
-          className="pointer-events-none absolute inset-0 -z-0 bg-[url('/hero-bell-bg.svg')] bg-repeat opacity-[0.12] [background-size:48px_48px]"
+          className="pointer-events-none absolute inset-0 -z-0 bg-white [background-image:linear-gradient(to_right,rgba(15,18,34,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,18,34,0.04)_1px,transparent_1px)] [background-size:56px_56px]"
           aria-hidden
         />
-        <div className="relative z-10">
+        <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6">
           <header className="mb-16 flex flex-col gap-4 sm:mb-24">
             <div className="flex items-center justify-between gap-3">
               <BrandLogo
@@ -126,37 +113,67 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {featuredSkills.map((skill) => (
-            <article
-              key={skill.title}
-              className="border border-[#eceffa] p-5 transition-shadow hover:shadow-[0_12px_35px_rgba(23,35,73,0.08)]"
-            >
-              <div className="mb-7 flex items-center justify-between">
-                <span className="text-[11px] tracking-[0.18em] text-[#9ba1b8]">
-                  PUBLIC
-                </span>
-                <span className="border border-[#cde0ff] bg-[#f4f8ff] px-2 py-1 text-[9px] font-semibold tracking-[0.18em] text-[#4b7be6]">
-                  VERIFIED
-                </span>
-              </div>
-              <h3 className="text-xl font-medium tracking-tight">
-                {skill.title}
-              </h3>
-              <p className="mt-3 min-h-12 text-sm leading-6 text-[#68708a]">
-                {skill.description}
-              </p>
-              <div className="mt-6 flex items-center justify-between border-t border-[#eef1f8] pt-4 text-[11px] tracking-[0.14em] text-[#99a0b7]">
-                <span>4.2k USES</span>
-                <span>v1.7</span>
-              </div>
-              <Link
-                href="/explore"
-                className="mt-5 block w-full border border-black bg-black py-2.5 text-center text-xs font-semibold tracking-[0.2em] text-white"
-              >
-                VIEW IN MARKETPLACE
-              </Link>
-            </article>
-          ))}
+          {featuredListings.length > 0
+            ? featuredListings.map((listing) => (
+                <article
+                  key={listing._id}
+                  className="border border-[#eceffa] p-5 transition-shadow hover:shadow-[0_12px_35px_rgba(23,35,73,0.08)]"
+                >
+                  <div className="mb-7 flex items-center justify-between">
+                    <span className="font-mono text-[11px] tracking-[0.14em] text-[#9ba1b8]">
+                      #{listing.listingHashId}
+                    </span>
+                    {listing.verified && (
+                      <span className="border border-[#cde0ff] bg-[#f4f8ff] px-2 py-1 text-[9px] font-semibold tracking-[0.18em] text-[#4b7be6]">
+                        VERIFIED
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-xl font-medium tracking-tight">
+                    {listing.title}
+                  </h3>
+                  <p className="mt-3 min-h-12 text-sm leading-6 text-[#68708a]">
+                    {listing.shortDescription}
+                  </p>
+                  <div className="mt-6 flex items-center justify-between border-t border-[#eef1f8] pt-4 text-[11px] tracking-[0.14em] text-[#99a0b7]">
+                    <span>
+                      {listing.reviewCount != null
+                        ? `${listing.reviewCount} reviews`
+                        : "—"}
+                    </span>
+                    <span className="font-semibold text-[#0f1222]">
+                      {formatPrice(listing.price)}
+                    </span>
+                  </div>
+                  <Link
+                    href={`/skills/${listing.listingHashId}`}
+                    className="mt-5 block w-full border border-black bg-black py-2.5 text-center text-xs font-semibold tracking-[0.2em] text-white"
+                  >
+                    VIEW IN MARKETPLACE
+                  </Link>
+                </article>
+              ))
+            : /* Fallback placeholder cards when API is unavailable */
+              [
+                { id: "1", title: "Semantic Syntax Refiner", desc: "High-fidelity intent extraction from nested JSON structures." },
+                { id: "2", title: "Edge VotingBundle", desc: "Pre-trained routers for real-time object classification." },
+                { id: "3", title: "Prompt Injection Shield", desc: "Continuously learns defensive prompt patterns." },
+              ].map((s) => (
+                <article
+                  key={s.id}
+                  className="border border-[#eceffa] p-5 transition-shadow hover:shadow-[0_12px_35px_rgba(23,35,73,0.08)]"
+                >
+                  <div className="mb-7 flex items-center justify-between">
+                    <span className="text-[11px] tracking-[0.18em] text-[#9ba1b8]">PUBLIC</span>
+                    <span className="border border-[#cde0ff] bg-[#f4f8ff] px-2 py-1 text-[9px] font-semibold tracking-[0.18em] text-[#4b7be6]">VERIFIED</span>
+                  </div>
+                  <h3 className="text-xl font-medium tracking-tight">{s.title}</h3>
+                  <p className="mt-3 min-h-12 text-sm leading-6 text-[#68708a]">{s.desc}</p>
+                  <Link href="/explore" className="mt-5 block w-full border border-black bg-black py-2.5 text-center text-xs font-semibold tracking-[0.2em] text-white">
+                    VIEW IN MARKETPLACE
+                  </Link>
+                </article>
+              ))}
         </div>
       </section>
 

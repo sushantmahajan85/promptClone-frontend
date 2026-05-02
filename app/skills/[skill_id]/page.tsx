@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { getSkillByRouteId } from "@/lib/skill-registry";
+import type { ApiListing } from "@/lib/api";
 
 import { SkillDetailView } from "./skill-detail-view";
 
@@ -8,23 +8,34 @@ type Props = Readonly<{
   params: Promise<{ skill_id: string }>;
 }>;
 
+async function fetchListing(id: string): Promise<ApiListing | null> {
+  const base = process.env.NEXT_PUBLIC_API_URL ?? "";
+  if (!base) return null;
+  try {
+    const res = await fetch(`${base}/api/listings/${id}`, {
+      cache: "no-store",
+    });
+    const data = await res.json();
+    if (!data.success) return null;
+    return data.listing as ApiListing;
+  } catch {
+    return null;
+  }
+}
+
 export async function generateMetadata({ params }: Props) {
   const { skill_id } = await params;
-  const skill = getSkillByRouteId(skill_id);
-  if (!skill) {
-    return { title: "Skill | SkillKart" };
-  }
+  const listing = await fetchListing(skill_id);
+  if (!listing) return { title: "Skill | SkillKart" };
   return {
-    title: `${skill.title} | SkillKart`,
-    description: skill.shortDescription,
+    title: `${listing.title} | SkillKart`,
+    description: listing.shortDescription,
   };
 }
 
 export default async function SkillPage({ params }: Props) {
   const { skill_id } = await params;
-  const skill = getSkillByRouteId(skill_id);
-  if (!skill) {
-    notFound();
-  }
-  return <SkillDetailView skill={skill} />;
+  const listing = await fetchListing(skill_id);
+  if (!listing) notFound();
+  return <SkillDetailView listing={listing} />;
 }
