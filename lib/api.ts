@@ -150,16 +150,26 @@ export const listingsApi = {
     );
   },
 
-  get(id: string) {
-    return apiFetch<{ success: true; listing: ApiListing }>(`/api/listings/${id}`);
+  get(id: string, token?: string) {
+    return apiFetch<{ success: true; listing: ApiListing; transaction?: unknown }>(
+      `/api/listings/${id}`,
+      undefined,
+      token,
+    );
+  },
+
+  featured(limit = 6) {
+    return apiFetch<{ success: true; listings: ApiListing[]; count: number }>(
+      `/api/listings/featured?limit=${limit}`,
+    );
   },
 
   create(
     token: string,
     body: {
       title: string;
-      description?: string;
-      shortDescription: string;
+      description: string;
+      shortDescription?: string;
       price: number;
       pricingModel: "one-time";
       llmCompatibility: string[];

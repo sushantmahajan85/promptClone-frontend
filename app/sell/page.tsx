@@ -2,6 +2,7 @@
 
 import { BrandLogo } from "@/components/brand-logo";
 import { NavAuth } from "@/components/nav-auth";
+import { zipSync } from "fflate";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -48,7 +49,10 @@ export default function SellPage() {
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   const agentPickerRef = useRef<HTMLDivElement>(null);
   const [dragOver, setDragOver] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [folderName, setFolderName] = useState("");
+  const [folderFiles, setFolderFiles] = useState<File[]>([]);
+  const [skillsMdContent, setSkillsMdContent] = useState<string | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState("");
   const [publishedId, setPublishedId] = useState("");
@@ -86,8 +90,53 @@ export default function SellPage() {
     setSupportedAgents((prev) => prev.filter((a) => a !== agent));
   }, []);
 
-  const handleFilePicked = useCallback((file: File | undefined | null) => {
-    if (file) setSelectedFile(file);
+  const buildZip = useCallback(async (files: File[], rootName: string): Promise<File> => {
+    const entries: Record<string, Uint8Array> = {};
+    await Promise.all(
+      files.map(async (f) => {
+        const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath;
+        // Use relative path if present, otherwise place directly under root folder
+        const entryPath = rel ? rel : `${rootName}/${f.name}`;
+        const buf = await f.arrayBuffer();
+        entries[entryPath] = new Uint8Array(buf);
+      }),
+    );
+    const zipped = zipSync(entries, { level: 6 });
+    // Copy into a fresh Uint8Array backed by a plain ArrayBuffer (avoids
+    // SharedArrayBuffer type mismatch with BlobPart in strict TypeScript).
+    const safe = new Uint8Array(zipped.length);
+    safe.set(zipped);
+    const blob = new Blob([safe], { type: "application/zip" });
+    return new File([blob], `${rootName}.zip`, { type: "application/zip" });
+  }, []);
+
+  const processFiles = useCallback(async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList);
+    if (files.length === 0) return;
+
+    const firstFile = files[0] as File & { webkitRelativePath?: string };
+    const relativePath = firstFile.webkitRelativePath ?? "";
+    const displayName = relativePath ? relativePath.split("/")[0] : firstFile.name;
+    setFolderName(displayName);
+    setFolderFiles(files);
+
+    const skillsMd = files.find((f) => {
+      const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath ?? f.name;
+      const filename = rel.split("/").pop() ?? rel;
+      return filename.toLowerCase() === "skill.md";
+    });
+
+    if (skillsMd) {
+      const text = await skillsMd.text();
+      setSkillsMdContent(text);
+    } else {
+      setSkillsMdContent(null);
+    }
+
+    // If a pre-built zip exists in the selection use it directly;
+    // otherwise we'll build one on publish from the raw file list.
+    const existingZip = files.find((f) => f.name.toLowerCase().endsWith(".zip"));
+    setUploadFile(existingZip ?? null);
   }, []);
 
   const handlePublish = useCallback(async () => {
@@ -100,15 +149,24 @@ export default function SellPage() {
     try {
       const { listing } = await listingsApi.create(token, {
         title: skillName.trim() || "Untitled Skill",
-        shortDescription: shortDescription.trim(),
+        description: shortDescription.trim(),
         price: priceCents,
         pricingModel: "one-time",
         llmCompatibility: supportedAgents,
         tags,
         status: "draft",
       });
-      if (selectedFile) {
-        await listingsApi.upload(token, listing._id, selectedFile);
+
+      // Determine the file to upload:
+      // 1. Use a pre-selected zip if present
+      // 2. Otherwise compress all folder files into a zip first
+      let fileToUpload: File | null = uploadFile;
+      if (!fileToUpload && folderFiles.length > 0) {
+        fileToUpload = await buildZip(folderFiles, folderName || "skill");
+      }
+
+      if (fileToUpload) {
+        await listingsApi.upload(token, listing._id, fileToUpload);
       }
       await listingsApi.update(token, listing._id, { status: "pending-review" });
       setPublishedId(listing.listingHashId);
@@ -125,8 +183,19 @@ export default function SellPage() {
     priceCents,
     supportedAgents,
     tags,
-    selectedFile,
+    uploadFile,
+    folderFiles,
+    folderName,
+    buildZip,
   ]);
+
+  useEffect(() => {
+    const input = fileInputRef.current;
+    if (input) {
+      input.setAttribute("webkitdirectory", "");
+      input.setAttribute("multiple", "");
+    }
+  }, []);
 
   useEffect(() => {
     if (!agentMenuOpen) return;
@@ -423,8 +492,11 @@ export default function SellPage() {
                 ref={fileInputRef}
                 type="file"
                 className="sr-only"
-                accept=".zip,.md,application/zip"
-                onChange={(e) => handleFilePicked(e.target.files?.[0])}
+                onChange={(e) => {
+                  if (e.target.files && e.target.files.length > 0) {
+                    void processFiles(e.target.files);
+                  }
+                }}
               />
               <section
                 aria-label="Skill artifact drop zone"
@@ -441,7 +513,9 @@ export default function SellPage() {
                 onDrop={(e) => {
                   e.preventDefault();
                   setDragOver(false);
-                  handleFilePicked(e.dataTransfer.files?.[0]);
+                  if (e.dataTransfer.files.length > 0) {
+                    void processFiles(e.dataTransfer.files);
+                  }
                 }}
               >
                 <label
@@ -466,12 +540,16 @@ export default function SellPage() {
                     Drop your skill folder here
                   </p>
                   <p className="mt-1 max-w-sm text-center text-xs leading-relaxed text-[#6b7280]">
-                    Drag &amp; drop the .zip or folder containing your logic,
-                    config, and manifest.
+                    Drag &amp; drop a folder containing your logic, config, and manifest.
                   </p>
-                  {selectedFile && (
+                  {folderName && (
                     <p className="mt-3 font-mono text-[11px] text-[#16a34a]">
-                      ✓ {selectedFile.name}
+                      ✓ {folderName}
+                      {folderFiles.length > 1 && (
+                        <span className="ml-2 text-[#9aa0b5]">
+                          ({folderFiles.length} files)
+                        </span>
+                      )}
                     </p>
                   )}
                   <button
@@ -483,45 +561,47 @@ export default function SellPage() {
                     }}
                     className="mt-6 border border-black bg-black px-5 py-2.5 text-xs font-semibold tracking-[0.12em] text-white"
                   >
-                    BROWSE LOCAL
+                    BROWSE FOLDER
                   </button>
                 </label>
               </section>
             </div>
 
-            <div className="mt-6 flex flex-col gap-2 border border-[#e5e7eb] bg-white px-3 py-3 text-xs text-[#4b5563] sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:px-4">
-              <svg
-                className="h-4 w-4 shrink-0 text-[#16a34a]"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-              <span className="font-mono font-semibold tracking-wide text-[#0f1222]">
-                SKILLS.MD DETECTED
-              </span>
-              <span className="text-[#9ca3af]">|</span>
-              <span className="font-mono text-[11px] text-[#6b7280]">
-                PARSING DOCUMENTATION MANIFEST...
-              </span>
-              <span className="font-mono text-[11px] text-[#9ca3af] sm:ml-auto">
-                8.2 KB
-              </span>
-            </div>
+            {skillsMdContent !== null && (
+              <div className="mt-6 flex flex-col gap-2 border border-[#e5e7eb] bg-white px-3 py-3 text-xs text-[#4b5563] sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:px-4">
+                <svg
+                  className="h-4 w-4 shrink-0 text-[#16a34a]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                <span className="font-mono font-semibold tracking-wide text-[#0f1222]">
+                  SKILL.MD DETECTED
+                </span>
+                <span className="text-[#9ca3af]">|</span>
+                <span className="font-mono text-[11px] text-[#6b7280]">
+                  PARSING DOCUMENTATION MANIFEST...
+                </span>
+                <span className="font-mono text-[11px] text-[#9ca3af] sm:ml-auto">
+                  {(skillsMdContent.length / 1024).toFixed(1)} KB
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-6">
             <div className="overflow-hidden rounded-lg border border-[#e5e7eb] bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-[#e5e7eb] bg-[#f9fafb] px-4 py-2.5">
                 <span className="font-mono text-[11px] tracking-wide text-[#6b7280]">
-                  PREVIEW: SKILLS.MD
+                  PREVIEW: SKILL.MD
                 </span>
                 <div className="flex gap-1.5" aria-hidden>
                   <span className="h-2.5 w-2.5 rounded-full bg-[#ef4444]" />
@@ -530,39 +610,43 @@ export default function SellPage() {
                 </div>
               </div>
               <div className="max-h-[340px] overflow-y-auto p-5 font-mono text-xs leading-relaxed text-[#374151]">
-                <h2 className="text-base font-semibold text-[#111827]">
-                  # {previewTitle}
-                </h2>
-                <blockquote className="mt-3 border-l-2 border-[#2563eb] pl-3 text-[#6b7280]">
-                  &gt; A high-performance skill for extracting structured data
-                  from multimodal inputs with schema-safe outputs.
-                </blockquote>
-                <h3 className="mt-6 font-semibold text-[#111827]">## Inputs</h3>
-                <ul className="mt-2 list-inside list-disc space-y-1 text-[#4b5563]">
-                  <li>
-                    <code className="rounded bg-[#f3f4f6] px-1">raw_payload</code>{" "}
-                    — JSON or binary frame
-                  </li>
-                  <li>
-                    <code className="rounded bg-[#f3f4f6] px-1">schema_id</code>{" "}
-                    — registry reference
-                  </li>
-                </ul>
-                <h3 className="mt-6 font-semibold text-[#111827]">## Usage</h3>
-                <pre className="mt-3 overflow-x-auto rounded-md border border-[#e5e7eb] bg-[#f8fafc] p-3 text-[11px] text-[#1e3a5f]">
-                  {`import { loadSkill } from "@skillkart/sdk";
-
-const skill = await loadSkill("${previewTitle.toLowerCase().replaceAll(/\s+/g, "_")}");
-const out = await skill.run({ raw_payload, schema_id });`}
-                </pre>
+                {skillsMdContent !== null ? (
+                  <pre className="whitespace-pre-wrap break-words text-[#374151]">
+                    {skillsMdContent}
+                  </pre>
+                ) : (
+                  <>
+                    <h2 className="text-base font-semibold text-[#111827]">
+                      # {previewTitle}
+                    </h2>
+                    <blockquote className="mt-3 border-l-2 border-[#2563eb] pl-3 text-[#6b7280]">
+                      &gt; Select a folder containing a skills.md to preview its
+                      documentation here.
+                    </blockquote>
+                    <h3 className="mt-6 font-semibold text-[#111827]">
+                      ## Getting started
+                    </h3>
+                    <p className="mt-2 text-[#4b5563]">
+                      Click{" "}
+                      <span className="rounded bg-[#f3f4f6] px-1">
+                        BROWSE FOLDER
+                      </span>{" "}
+                      or drag your skill folder into the drop zone.                       A{" "}
+                      <span className="rounded bg-[#f3f4f6] px-1">
+                        SKILL.md
+                      </span>{" "}
+                      file will be automatically detected and previewed here.
+                    </p>
+                  </>
+                )}
               </div>
               <div className="flex items-center justify-between border-t border-[#e5e7eb] bg-[#f9fafb] px-4 py-2 font-mono text-[10px] text-[#9ca3af]">
                 <span className="flex items-center gap-2" aria-hidden>
                   <span className="text-[#6b7280]">&lt;&gt;</span>
                   <span className="text-[#6b7280]">{"{}"}</span>
                 </span>
-                <span className="tracking-wide text-[#16a34a]">
-                  DOCS_AUTO_VALIDATED: OK
+                <span className={`tracking-wide ${skillsMdContent !== null ? "text-[#16a34a]" : "text-[#9ca3af]"}`}>
+                  {skillsMdContent !== null ? "DOCS_AUTO_VALIDATED: OK" : "AWAITING FOLDER..."}
                 </span>
               </div>
             </div>
@@ -645,10 +729,15 @@ const out = await skill.run({ raw_payload, schema_id });`}
                   </div>
                   <div>
                     <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
-                      FILE
+                      FOLDER / FILE
                     </dt>
                     <dd className="mt-1 font-mono text-[#3d4459]">
-                      {selectedFile ? selectedFile.name : "— (no file selected)"}
+                      {folderName || "— (no folder selected)"}
+                      {folderFiles.length > 1 && (
+                        <span className="ml-2 text-[#9aa0b5]">
+                          ({folderFiles.length} files)
+                        </span>
+                      )}
                     </dd>
                   </div>
                   <div>
@@ -701,7 +790,11 @@ const out = await skill.run({ raw_payload, schema_id });`}
                     onClick={handlePublish}
                     className="w-full border border-black bg-black px-6 py-2.5 text-sm font-semibold text-white disabled:opacity-60 sm:w-auto"
                   >
-                    {publishing ? "Publishing…" : "Publish to registry"}
+                    {publishing
+                      ? folderFiles.length > 0 && !uploadFile
+                        ? "Compressing…"
+                        : "Publishing…"
+                      : "Publish to registry"}
                   </button>
                 </div>
               </>

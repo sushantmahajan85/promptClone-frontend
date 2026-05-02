@@ -1,23 +1,8 @@
 import { BrandLogo } from "@/components/brand-logo";
+import { FeaturedListings } from "@/components/featured-listings";
 import Link from "next/link";
-import { type ApiListing, formatPrice } from "@/lib/api";
 
-async function getFeaturedListings(): Promise<ApiListing[]> {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? "";
-  if (!base) return [];
-  try {
-    const res = await fetch(`${base}/api/listings?limit=6&sortBy=newest`, {
-      cache: "no-store",
-    });
-    const data = await res.json();
-    return data.success ? (data.listings as ApiListing[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export default async function Home() {
-  const featuredListings = await getFeaturedListings();
+export default function Home() {
 
   return (
     <main className="bg-white text-[#0f1222]">
@@ -112,69 +97,7 @@ export default async function Home() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {featuredListings.length > 0
-            ? featuredListings.map((listing) => (
-                <article
-                  key={listing._id}
-                  className="border border-[#eceffa] p-5 transition-shadow hover:shadow-[0_12px_35px_rgba(23,35,73,0.08)]"
-                >
-                  <div className="mb-7 flex items-center justify-between">
-                    <span className="font-mono text-[11px] tracking-[0.14em] text-[#9ba1b8]">
-                      #{listing.listingHashId}
-                    </span>
-                    {listing.verified && (
-                      <span className="border border-[#cde0ff] bg-[#f4f8ff] px-2 py-1 text-[9px] font-semibold tracking-[0.18em] text-[#4b7be6]">
-                        VERIFIED
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="text-xl font-medium tracking-tight">
-                    {listing.title}
-                  </h3>
-                  <p className="mt-3 min-h-12 text-sm leading-6 text-[#68708a]">
-                    {listing.shortDescription}
-                  </p>
-                  <div className="mt-6 flex items-center justify-between border-t border-[#eef1f8] pt-4 text-[11px] tracking-[0.14em] text-[#99a0b7]">
-                    <span>
-                      {listing.reviewCount != null
-                        ? `${listing.reviewCount} reviews`
-                        : "—"}
-                    </span>
-                    <span className="font-semibold text-[#0f1222]">
-                      {formatPrice(listing.price)}
-                    </span>
-                  </div>
-                  <Link
-                    href={`/skills/${listing.listingHashId}`}
-                    className="mt-5 block w-full border border-black bg-black py-2.5 text-center text-xs font-semibold tracking-[0.2em] text-white"
-                  >
-                    VIEW IN MARKETPLACE
-                  </Link>
-                </article>
-              ))
-            : /* Fallback placeholder cards when API is unavailable */
-              [
-                { id: "1", title: "Semantic Syntax Refiner", desc: "High-fidelity intent extraction from nested JSON structures." },
-                { id: "2", title: "Edge VotingBundle", desc: "Pre-trained routers for real-time object classification." },
-                { id: "3", title: "Prompt Injection Shield", desc: "Continuously learns defensive prompt patterns." },
-              ].map((s) => (
-                <article
-                  key={s.id}
-                  className="border border-[#eceffa] p-5 transition-shadow hover:shadow-[0_12px_35px_rgba(23,35,73,0.08)]"
-                >
-                  <div className="mb-7 flex items-center justify-between">
-                    <span className="text-[11px] tracking-[0.18em] text-[#9ba1b8]">PUBLIC</span>
-                    <span className="border border-[#cde0ff] bg-[#f4f8ff] px-2 py-1 text-[9px] font-semibold tracking-[0.18em] text-[#4b7be6]">VERIFIED</span>
-                  </div>
-                  <h3 className="text-xl font-medium tracking-tight">{s.title}</h3>
-                  <p className="mt-3 min-h-12 text-sm leading-6 text-[#68708a]">{s.desc}</p>
-                  <Link href="/explore" className="mt-5 block w-full border border-black bg-black py-2.5 text-center text-xs font-semibold tracking-[0.2em] text-white">
-                    VIEW IN MARKETPLACE
-                  </Link>
-                </article>
-              ))}
-        </div>
+        <FeaturedListings />
       </section>
 
       <section className="border-y border-[#eef0f8] bg-[#fafbff]">

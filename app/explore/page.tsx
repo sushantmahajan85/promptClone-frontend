@@ -188,7 +188,7 @@ export default function ExplorePage() {
               : listings.map((listing) => (
                   <Link
                     key={listing._id}
-                    href={`/skills/${listing.listingHashId}`}
+                    href={`/skills/${listing._id}`}
                     className={`block rounded-sm outline-none transition-shadow hover:shadow-[0_12px_35px_rgba(23,35,73,0.08)] focus-visible:ring-2 focus-visible:ring-[#2563eb]/40 ${view === "list" ? "w-full" : ""}`}
                   >
                     <article

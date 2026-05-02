@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { NavAuth } from "@/components/nav-auth";
-import { type ApiListing, formatBytes, formatPrice } from "@/lib/api";
+import { type ApiListing, formatBytes, formatPrice, listingsApi } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 type TabId = "skills.md" | "handler.js" | "config.json";
 
@@ -33,9 +34,33 @@ function SellerAvatar({
 }
 
 export function SkillDetailView({
-  listing,
+  listing: initialListing,
 }: Readonly<{ listing: ApiListing }>) {
   const [activeTab, setActiveTab] = useState<TabId>("skills.md");
+  const [listing, setListing] = useState<ApiListing>(initialListing);
+  const [accessChecked, setAccessChecked] = useState(false);
+  const { token, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!token) {
+      setAccessChecked(true);
+      return;
+    }
+    listingsApi
+      .get(initialListing._id, token)
+      .then(({ listing: full }) => {
+        setListing(full);
+      })
+      .catch(() => {
+        /* keep initial listing */
+      })
+      .finally(() => setAccessChecked(true));
+  }, [token, authLoading, initialListing._id]);
+
+  // API omits fileUrl for users without access (variant C).
+  // Its presence in the response means seller, admin, or completed-purchase buyer.
+  const hasAccess = accessChecked && !!listing.fileUrl;
 
   const manifestFiles = listing.packageManifest?.files ?? [];
   const fileTree =
@@ -195,6 +220,7 @@ export default skill.pipeline;`}
               agent or workflow.
             </p>
             <button
+              id="skill-purchase-btn"
               type="button"
               aria-label="Download skill"
               className="mt-6 flex w-full items-center justify-center gap-2 border border-black bg-black py-3 text-xs font-semibold tracking-[0.15em] text-white"
@@ -338,8 +364,57 @@ export default skill.pipeline;`}
               </div>
 
               {/* Tab content */}
-              <div className="min-h-[280px] flex-1 bg-white p-4 sm:min-h-[320px] sm:p-6">
-                {tabBody[activeTab]}
+              <div className="relative min-h-[280px] flex-1 bg-white sm:min-h-[320px]">
+                <div
+                  className={`h-full p-4 sm:p-6 ${hasAccess ? "" : "pointer-events-none select-none blur-sm"}`}
+                  aria-hidden={!hasAccess}
+                >
+                  {tabBody[activeTab]}
+                </div>
+
+                {!hasAccess && !accessChecked && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#e5e7eb] border-t-[#0f1222]" />
+                  </div>
+                )}
+
+                {!hasAccess && accessChecked && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-white/60 backdrop-blur-[2px]">
+                    <div className="flex flex-col items-center gap-3 rounded-xl border border-[#e5e7eb] bg-white px-8 py-7 shadow-[0_8px_32px_rgba(15,18,34,0.10)]">
+                      <svg
+                        className="h-10 w-10 text-[#0f1222]"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                        />
+                      </svg>
+                      <p className="font-mono text-[11px] font-semibold tracking-[0.18em] text-[#0f1222]">
+                        CONTENT LOCKED
+                      </p>
+                      <p className="max-w-[200px] text-center text-xs leading-relaxed text-[#6b7280]">
+                        Purchase this skill to access all files and documentation.
+                      </p>
+                      <button
+                        type="button"
+                        className="mt-1 w-full border border-black bg-black px-6 py-2.5 text-xs font-semibold tracking-[0.14em] text-white hover:bg-[#1a1d2e]"
+                        onClick={() => {
+                          const el = document.getElementById("skill-purchase-btn");
+                          el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                          el?.focus();
+                        }}
+                      >
+                        PURCHASE — {formatPrice(listing.price)}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -352,7 +427,7 @@ export default skill.pipeline;`}
           <span>PRICE: {formatPrice(listing.price)}</span>
           <span>
             REVIEWS:{" "}
-            {listing.reviewCount != null ? listing.reviewCount : "—"}
+            {listing.reviewCount ?? "—"}
           </span>
           {listing.verified && (
             <span className="text-[#22c55e]">VERIFIED: OK</span>
