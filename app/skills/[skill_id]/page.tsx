@@ -12,10 +12,10 @@ export async function generateMetadata({ params }: Props) {
   const { skill_id } = await params;
   const skill = getSkillByRouteId(skill_id);
   if (!skill) {
-    return { title: "Skill | AlSync" };
+    return { title: "Skill | SkillKart" };
   }
   return {
-    title: `${skill.title} | AlSync`,
+    title: `${skill.title} | SkillKart`,
     description: skill.shortDescription,
   };
 }

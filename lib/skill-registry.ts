@@ -1,10 +1,4 @@
-export type SkillTelemetry = {
-  linesOfCode: number;
-  tokenEfficiency: string;
-  latencyPeakMs: number;
-};
-
-export type SkillRecord = {
+﻿export type SkillRecord = {
   routeId: string;
   displayId: string;
   catalogId: string;
@@ -17,13 +11,12 @@ export type SkillRecord = {
   authorDisplay: string;
   size: string;
   avatar: string;
-  priceMonthly: string;
   version: string;
   lastSync: string;
   computePerReq: string;
   globalInstalls: string;
-  wallet: string;
-  telemetry: SkillTelemetry;
+  /** Agent platforms this skill is validated for (e.g. Claude, GPT-4o). */
+  supportedAgents: string[];
 };
 
 export const SKILLS: SkillRecord[] = [
@@ -42,17 +35,11 @@ export const SKILLS: SkillRecord[] = [
     authorDisplay: "Synthetix_Dev",
     size: "1.2 MB",
     avatar: "#2563eb",
-    priceMonthly: "$42.00/mo",
     version: "v1.0.42",
     lastSync: "2m ago",
     computePerReq: "$0.002/req",
     globalInstalls: "12.4k",
-    wallet: "0xff42…d309",
-    telemetry: {
-      linesOfCode: 1240,
-      tokenEfficiency: "98.2",
-      latencyPeakMs: 24,
-    },
+    supportedAgents: ["Claude", "GPT-4o", "Gemini", "Mistral"],
   },
   {
     routeId: "0X8F21",
@@ -69,17 +56,11 @@ export const SKILLS: SkillRecord[] = [
     authorDisplay: "NullPtr_Labs",
     size: "890 KB",
     avatar: "#dc2626",
-    priceMonthly: "$38.00/mo",
     version: "v4.2.1",
     lastSync: "5m ago",
     computePerReq: "$0.003/req",
     globalInstalls: "8.1k",
-    wallet: "0x91a2…e441",
-    telemetry: {
-      linesOfCode: 2100,
-      tokenEfficiency: "96.4",
-      latencyPeakMs: 18,
-    },
+    supportedAgents: ["GPT-4o", "Gemini", "Claude"],
   },
   {
     routeId: "0X3C9E",
@@ -96,17 +77,11 @@ export const SKILLS: SkillRecord[] = [
     authorDisplay: "Schema_Lab",
     size: "420 KB",
     avatar: "#16a34a",
-    priceMonthly: "$24.00/mo",
     version: "v1.2.8",
     lastSync: "12m ago",
     computePerReq: "$0.001/req",
     globalInstalls: "21.0k",
-    wallet: "0xb3c1…9022",
-    telemetry: {
-      linesOfCode: 680,
-      tokenEfficiency: "99.1",
-      latencyPeakMs: 12,
-    },
+    supportedAgents: ["Claude", "GPT-4o", "Gemini", "Grok"],
   },
   {
     routeId: "0X7B44",
@@ -123,17 +98,11 @@ export const SKILLS: SkillRecord[] = [
     authorDisplay: "GPU_Stack",
     size: "2.1 MB",
     avatar: "#7c3aed",
-    priceMonthly: "$55.00/mo",
     version: "v2.0.0",
     lastSync: "1h ago",
     computePerReq: "$0.008/req",
     globalInstalls: "4.3k",
-    wallet: "0x77fe…01ab",
-    telemetry: {
-      linesOfCode: 3420,
-      tokenEfficiency: "94.0",
-      latencyPeakMs: 31,
-    },
+    supportedAgents: ["GPT-4o", "Claude"],
   },
   {
     routeId: "0X1D90",
@@ -150,17 +119,11 @@ export const SKILLS: SkillRecord[] = [
     authorDisplay: "Sec_Node",
     size: "640 KB",
     avatar: "#ea580c",
-    priceMonthly: "$48.00/mo",
     version: "v2.4.0",
     lastSync: "8m ago",
     computePerReq: "$0.004/req",
     globalInstalls: "15.2k",
-    wallet: "0xcc10…9ffd",
-    telemetry: {
-      linesOfCode: 980,
-      tokenEfficiency: "97.5",
-      latencyPeakMs: 16,
-    },
+    supportedAgents: ["Claude", "GPT-4o", "Gemini", "Mistral"],
   },
   {
     routeId: "0X5E67",
@@ -177,17 +140,11 @@ export const SKILLS: SkillRecord[] = [
     authorDisplay: "Latency_X",
     size: "1.8 MB",
     avatar: "#0891b2",
-    priceMonthly: "$36.00/mo",
     version: "v1.8.3",
     lastSync: "3m ago",
     computePerReq: "$0.002/req",
     globalInstalls: "19.7k",
-    wallet: "0x4aa0…221c",
-    telemetry: {
-      linesOfCode: 1560,
-      tokenEfficiency: "98.8",
-      latencyPeakMs: 20,
-    },
+    supportedAgents: ["GPT-4o", "Gemini", "Claude"],
   },
   {
     routeId: "0X9A12",
@@ -204,17 +161,11 @@ export const SKILLS: SkillRecord[] = [
     authorDisplay: "Tok_Ray",
     size: "955 KB",
     avatar: "#be185d",
-    priceMonthly: "$44.00/mo",
     version: "v0.9.6",
     lastSync: "22m ago",
     computePerReq: "$0.005/req",
     globalInstalls: "6.8k",
-    wallet: "0xd811…55ee",
-    telemetry: {
-      linesOfCode: 1120,
-      tokenEfficiency: "95.2",
-      latencyPeakMs: 27,
-    },
+    supportedAgents: ["Claude", "GPT-4o", "Gemini"],
   },
   {
     routeId: "0X2F58",
@@ -231,17 +182,11 @@ export const SKILLS: SkillRecord[] = [
     authorDisplay: "Wave_Form",
     size: "3.4 MB",
     avatar: "#0d9488",
-    priceMonthly: "$62.00/mo",
     version: "v3.1.0",
     lastSync: "45m ago",
     computePerReq: "$0.012/req",
     globalInstalls: "3.2k",
-    wallet: "0x2f90…bb01",
-    telemetry: {
-      linesOfCode: 2890,
-      tokenEfficiency: "93.1",
-      latencyPeakMs: 35,
-    },
+    supportedAgents: ["Gemini", "GPT-4o", "Claude"],
   },
   {
     routeId: "0X6C33",
@@ -258,17 +203,11 @@ export const SKILLS: SkillRecord[] = [
     authorDisplay: "Mesh_Ops",
     size: "720 KB",
     avatar: "#4f46e5",
-    priceMonthly: "$29.00/mo",
     version: "v1.4.2",
     lastSync: "6m ago",
     computePerReq: "$0.002/req",
     globalInstalls: "9.5k",
-    wallet: "0xe045…77aa",
-    telemetry: {
-      linesOfCode: 1340,
-      tokenEfficiency: "97.0",
-      latencyPeakMs: 22,
-    },
+    supportedAgents: ["Claude", "GPT-4o", "Gemini", "Mistral"],
   },
   {
     routeId: "0X4B01",
@@ -285,17 +224,11 @@ export const SKILLS: SkillRecord[] = [
     authorDisplay: "Edge_Lab",
     size: "1.5 MB",
     avatar: "#ca8a04",
-    priceMonthly: "$51.00/mo",
     version: "v2.2.4",
     lastSync: "18m ago",
     computePerReq: "$0.006/req",
     globalInstalls: "7.4k",
-    wallet: "0x08de…3301",
-    telemetry: {
-      linesOfCode: 1780,
-      tokenEfficiency: "96.0",
-      latencyPeakMs: 26,
-    },
+    supportedAgents: ["GPT-4o", "Gemini", "Claude"],
   },
   {
     routeId: "0X8D77",
@@ -312,17 +245,11 @@ export const SKILLS: SkillRecord[] = [
     authorDisplay: "Registry_Bot",
     size: "210 KB",
     avatar: "#64748b",
-    priceMonthly: "$18.00/mo",
     version: "v1.0.9",
     lastSync: "1m ago",
     computePerReq: "$0.001/req",
     globalInstalls: "28.3k",
-    wallet: "0x99aa…0044",
-    telemetry: {
-      linesOfCode: 420,
-      tokenEfficiency: "99.4",
-      latencyPeakMs: 9,
-    },
+    supportedAgents: ["Claude", "GPT-4o", "Gemini", "Grok"],
   },
   {
     routeId: "0X0E99",
@@ -339,17 +266,11 @@ export const SKILLS: SkillRecord[] = [
     authorDisplay: "Validate_SH",
     size: "180 KB",
     avatar: "#b91c1c",
-    priceMonthly: "$15.00/mo",
     version: "v0.4.1",
     lastSync: "33m ago",
     computePerReq: "$0.001/req",
     globalInstalls: "11.1k",
-    wallet: "0x1100…fa90",
-    telemetry: {
-      linesOfCode: 560,
-      tokenEfficiency: "98.0",
-      latencyPeakMs: 14,
-    },
+    supportedAgents: ["GPT-4o", "Claude"],
   },
 ];
 

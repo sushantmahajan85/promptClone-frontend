@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Marketplace Explorer | AiSync",
+  title: "Marketplace Explorer | SkillKart",
   description:
     "Browse verified high-performance skills for your modular AI stack.",
 };
