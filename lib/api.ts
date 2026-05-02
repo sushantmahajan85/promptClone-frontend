@@ -261,3 +261,55 @@ export function formatPrice(cents: number): string {
 export function sellerInitial(name: string): string {
   return name.trim().charAt(0).toUpperCase();
 }
+
+/**
+ * Decode a JWT payload without network calls or signature verification.
+ * Used as a lightweight fallback when the API is unreachable.
+ */
+export function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const base64 = parts[1].replaceAll("-", "+").replaceAll("_", "/");
+    const json = atob(base64);
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build a minimal ApiUser from a decoded JWT payload.
+ * The JWT contains userId, email, role — name is derived from email.
+ */
+export function userFromJwt(token: string): ApiUser | null {
+  const payload = decodeJwtPayload(token);
+  if (!payload) return null;
+
+  const email = (payload.email as string) ?? "";
+  const userId = (payload.userId as string) ?? (payload.sub as string) ?? "";
+  const role = (payload.role as ApiUser["role"]) ?? "buyer";
+  const now = new Date().toISOString();
+
+  return {
+    _id: userId,
+    email,
+    name: email.split("@")[0] ?? "User",
+    role,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+/** Returns true if the JWT has not expired yet. */
+export function isJwtValid(token: string): boolean {
+  try {
+    const payload = decodeJwtPayload(token);
+    if (!payload) return false;
+    const exp = payload.exp as number | undefined;
+    if (!exp) return true; // no expiry field — treat as valid
+    return Date.now() < exp * 1000;
+  } catch {
+    return false;
+  }
+}

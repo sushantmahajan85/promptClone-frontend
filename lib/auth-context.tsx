@@ -9,9 +9,9 @@ import {
   type ReactNode,
 } from "react";
 
-import { authApi, type ApiUser } from "./api";
+import { authApi, isJwtValid, userFromJwt, type ApiUser } from "./api";
 
-const TOKEN_KEY = "sk_token";
+export const TOKEN_KEY = "sk_token";
 
 type AuthCtx = {
   user: ApiUser | null;
@@ -30,17 +30,51 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
 
   useEffect(() => {
     const stored = localStorage.getItem(TOKEN_KEY);
+
+    // No stored token — nothing to do
     if (!stored) {
       setLoading(false);
       return;
     }
+
+    // Stored token is expired — clean up and move on
+    if (!isJwtValid(stored)) {
+      localStorage.removeItem(TOKEN_KEY);
+      setLoading(false);
+      return;
+    }
+
+    // Immediately load basic user info from the JWT so the UI
+    // doesn't flicker while the API call is in-flight.
+    const jwtUser = userFromJwt(stored);
+    if (jwtUser) {
+      setToken(stored);
+      setUser(jwtUser);
+    }
+
+    // Then try to enrich with full profile from the API.
+    const base = process.env.NEXT_PUBLIC_API_URL ?? "";
+    if (!base) {
+      // No API URL configured — JWT fallback is all we can do.
+      setLoading(false);
+      return;
+    }
+
     authApi
       .me(stored)
-      .then(({ user: u }) => {
+      .then(({ user: fullUser }) => {
         setToken(stored);
-        setUser(u);
+        setUser(fullUser);
       })
-      .catch(() => localStorage.removeItem(TOKEN_KEY))
+      .catch(() => {
+        // API unreachable or token rejected — if JWT was already
+        // parsed above we keep that minimal user, otherwise clean up.
+        if (!jwtUser) {
+          localStorage.removeItem(TOKEN_KEY);
+          setToken(null);
+          setUser(null);
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -51,10 +85,15 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   }, []);
 
   const logout = useCallback(() => {
-    if (token) authApi.logout(token).catch(() => {});
+    const current = token;
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
+    // Fire-and-forget; don't block on the response
+    if (current) {
+      const base = process.env.NEXT_PUBLIC_API_URL ?? "";
+      if (base) authApi.logout(current).catch(() => {});
+    }
   }, [token]);
 
   return (
