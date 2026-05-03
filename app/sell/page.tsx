@@ -16,6 +16,33 @@ const STEPS = [
   { id: 3, label: "REVIEW" },
 ] as const;
 
+/** Max size per demo media file (images + walkthrough video). */
+const DEMO_MEDIA_MAX_BYTES = 10 * 1024 * 1024;
+
+function isMp4DemoVideo(file: File): boolean {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".mp4")) return true;
+  return file.type === "video/mp4";
+}
+
+function isLikelyVideoFile(file: File): boolean {
+  if (file.type.startsWith("video/")) return true;
+  return /\.(mp4|webm|mov|mkv|avi|m4v|wmv)$/i.test(file.name);
+}
+
+function validateDemoMediaFile(file: File): string | null {
+  if (file.size > DEMO_MEDIA_MAX_BYTES) {
+    return `${file.name} exceeds the 10MB limit for demo media.`;
+  }
+  if (file.type.startsWith("image/")) return null;
+  if (isLikelyVideoFile(file)) {
+    return isMp4DemoVideo(file)
+      ? null
+      : `${file.name}: only MP4 video is allowed for walkthroughs (not ${file.type || "this format"}).`;
+  }
+  return `${file.name}: use images or an MP4 video for demo media.`;
+}
+
 const AGENT_OPTIONS = [
   "ChatGPT",
   "Claude",
@@ -47,7 +74,6 @@ function uploadCategoryChipClass(selected: boolean, disabled: boolean): string {
 
 export function UploadSkillPage() {
   const { token, user, loading: authLoading } = useAuth();
-  const router = useRouter();
   const uploadFieldId = useId();
   const demoMediaFieldId = useId();
   const previewImageFieldId = useId();
@@ -193,7 +219,7 @@ export function UploadSkillPage() {
 
   const handlePublish = useCallback(async () => {
     if (!token) {
-      router.push("/auth/login");
+      globalThis.open("/auth/login", "_blank", "noopener,noreferrer");
       return;
     }
     if (categorySlugs.length === 0) {
@@ -205,7 +231,7 @@ export function UploadSkillPage() {
       return;
     }
     if (demoMediaFiles.length === 0) {
-      setPublishError("Attach at least one demo image or demo video before publishing.");
+      setPublishError("Attach at least one demo image or MP4 video before publishing.");
       return;
     }
 
@@ -244,7 +270,6 @@ export function UploadSkillPage() {
     }
   }, [
     token,
-    router,
     skillName,
     shortDescription,
     priceCents,
@@ -858,26 +883,44 @@ export function UploadSkillPage() {
               Add setup walkthrough media
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-[#5c6178]">
-              Attach at least one image or video that explains how to set up and use your skill.
+              Attach at least one image or MP4 video that explains how to set up and use your skill.
+              Each file must be 10MB or smaller.
             </p>
             <input
               id={demoMediaFieldId}
               ref={demoMediaInputRef}
               type="file"
               multiple
-              accept="image/*,video/*"
+              accept="image/*,video/mp4,.mp4"
               className="sr-only"
               onChange={(e) => {
                 const files = Array.from(e.target.files ?? []);
                 if (files.length === 0) return;
-                setDemoMediaFiles((prev) => [...prev, ...files]);
+                const next: File[] = [];
+                const problems: string[] = [];
+                for (const file of files) {
+                  const err = validateDemoMediaFile(file);
+                  if (err) problems.push(err);
+                  else next.push(file);
+                }
+                if (problems.length > 0) {
+                  const base = problems.slice(0, 3).join(" ");
+                  setPublishError(
+                    problems.length > 3 ? `${base} (+${problems.length - 3} more)` : base,
+                  );
+                } else {
+                  setPublishError("");
+                }
+                if (next.length > 0) {
+                  setDemoMediaFiles((prev) => [...prev, ...next]);
+                }
                 e.currentTarget.value = "";
               }}
             />
             <div className="mt-6 border border-dashed border-[#d1d5db] bg-white p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-[#4b5563]">
-                  Upload walkthrough screenshots, GIFs, or short videos.
+                  Upload walkthrough screenshots, GIFs, or MP4 videos (max 10MB each).
                 </p>
                 <button
                   type="button"
@@ -964,9 +1007,16 @@ export function UploadSkillPage() {
                   }
                   if (demoMediaFiles.length === 0) {
                     setPublishError(
-                      "Attach at least one demo image or video before continuing.",
+                      "Attach at least one demo image or MP4 video before continuing.",
                     );
                     return;
+                  }
+                  for (const f of demoMediaFiles) {
+                    const err = validateDemoMediaFile(f);
+                    if (err) {
+                      setPublishError(err);
+                      return;
+                    }
                   }
                   setPublishError("");
                   setStep(3);
@@ -1177,7 +1227,12 @@ export function UploadSkillPage() {
                 {!authLoading && !user && (
                   <p className="mt-4 border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
                     You must{" "}
-                    <Link href="/auth/login" className="font-medium underline">
+                    <Link
+                      href="/auth/login"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium underline"
+                    >
                       sign in
                     </Link>{" "}
                     to publish a skill.
