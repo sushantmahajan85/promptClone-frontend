@@ -35,8 +35,6 @@ const isTextFile = (path: string) => TEXT_EXTENSIONS.test(path);
 const isImageFile = (path: string) =>
   /\.(png|jpe?g|webp|gif|svg|ico)$/i.test(path);
 
-const DEFAULT_TABS = ["skills.md", "handler.js", "config.json"];
-
 export function SkillDetailView({
   listing: initialListing,
 }: Readonly<{ listing: ApiListing }>) {
@@ -47,8 +45,14 @@ export function SkillDetailView({
   const confirmDialogRef = useRef<HTMLDialogElement>(null);
   const { token, user, loading: authLoading } = useAuth();
 
-  // Dynamic file viewer state
-  const [activeFile, setActiveFile] = useState<string>("skills.md");
+  // Dynamic file viewer state — seeded from manifest on first render
+  const firstManifestFile =
+    (initialListing.packageManifest?.files ?? []).filter((f) =>
+      TEXT_EXTENSIONS.test(f.path)
+    )[0]?.path ??
+    (initialListing.packageManifest?.files ?? [])[0]?.path ??
+    "";
+  const [activeFile, setActiveFile] = useState<string>(firstManifestFile);
   const [fileContents, setFileContents] = useState<Record<string, string>>({});
   const [fetchingFile, setFetchingFile] = useState<string | null>(null);
 
@@ -70,6 +74,14 @@ export function SkillDetailView({
       .get(initialListing._id, token)
       .then(({ listing: full }) => {
         setListing(full);
+        // Seed activeFile from the full manifest if we had no initial file
+        const files = full.packageManifest?.files ?? [];
+        if (files.length > 0) {
+          const first =
+            files.find((f) => TEXT_EXTENSIONS.test(f.path))?.path ??
+            files[0].path;
+          setActiveFile((prev) => (prev ? prev : first));
+        }
       })
       .catch(() => {/* keep initial listing */})
       .finally(() => setAccessChecked(true));
@@ -153,43 +165,11 @@ export function SkillDetailView({
   );
 
   // ─── Dynamic file viewer ──────────────────────────────────────────────────
-  // Build tab list from manifest text files (up to 5), else use defaults
+  // Build tab list from manifest text files (up to 5). No fake defaults.
   const manifestTextFiles = manifestFiles.filter((f) => isTextFile(f.path));
-  const displayTabs =
-    manifestTextFiles.length > 0
-      ? manifestTextFiles.slice(0, 5).map((f) => f.path)
-      : DEFAULT_TABS;
-
-  const fileTree =
-    manifestFiles.length > 0
-      ? manifestFiles.map((f) => f.path)
-      : DEFAULT_TABS;
-
-  // Config JSON is always derived from listing metadata
-  const configJson = JSON.stringify(
-    {
-      name: listing.title,
-      listingHashId: listing.listingHashId,
-      pricingModel: listing.pricingModel,
-      price: listing.price,
-      tags: listing.tags,
-      categories: listing.categories,
-      llmCompatibility: listing.llmCompatibility,
-      status: listing.status,
-    },
-    null,
-    2,
-  );
-
-  const handlerJsTemplate = `import { defineHandler } from "@skillkart/runtime";
-
-export default defineHandler({
-  name: "${listing.title}",
-  async run(ctx) {
-    const out = await ctx.model.complete(ctx.input);
-    return { ok: true, output: out };
-  },
-});`;
+  const displayTabs = manifestTextFiles.slice(0, 5).map((f) => f.path);
+  const fileTree = manifestFiles.map((f) => f.path);
+  const hasPackage = manifestFiles.length > 0;
 
   // Resolve content for the active file
   const activeManifestFile = manifestFiles.find((f) => f.path === activeFile);
@@ -197,17 +177,6 @@ export default defineHandler({
   let activeContent: string | null = null;
   if (fileContents[activeFile] !== undefined) {
     activeContent = fileContents[activeFile];
-  } else if (manifestTextFiles.length === 0) {
-    // Fallback static content for default tabs
-    if (activeFile === "skills.md") {
-      activeContent = listing.description || null;
-    } else if (activeFile === "handler.js") {
-      activeContent = handlerJsTemplate;
-    } else if (activeFile === "config.json") {
-      activeContent = configJson;
-    }
-  } else if (activeFile === "config.json" && !activeManifestFile) {
-    activeContent = configJson;
   }
 
   const hasNoMedia =
@@ -531,141 +500,155 @@ export default defineHandler({
 
           {/* Dynamic code viewer */}
           <div className="min-w-0 flex-1 border border-[#eceef5] bg-[#fafbff]">
-            {/* Tabs — dynamic from manifest text files */}
-            <div className="-mx-px flex flex-nowrap gap-0 overflow-x-auto border-b border-[#eceef5] bg-white [-webkit-overflow-scrolling:touch]">
-              {displayTabs.map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => handleFileSelect(tab)}
-                  className={`shrink-0 border-b-2 px-3 py-3 font-mono text-[11px] sm:px-4 sm:text-xs ${
-                    activeFile === tab
-                      ? "-mb-px border-black font-medium text-[#0f1222]"
-                      : "border-transparent text-[#8b90a3] hover:text-[#5c6178]"
-                  }`}
-                >
-                  {tab.split("/").pop()}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex flex-col md:flex-row">
-              {/* File tree */}
-              <div className="w-full shrink-0 border-b border-[#eceef5] bg-white p-4 font-mono text-xs text-[#5c6178] md:w-52 md:border-b-0 md:border-r">
-                <p className="mb-3 text-[10px] tracking-wide text-[#b4b8c9]">src /</p>
-                <ul className="space-y-1">
-                  {fileTree.map((file) => (
-                    <li key={file}>
+            {!hasPackage ? (
+              /* No package uploaded yet */
+              <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 p-6 text-center">
+                <p className="font-mono text-[11px] tracking-[0.14em] text-[#9aa0b5]">
+                  NO PACKAGE UPLOADED
+                </p>
+                <p className="max-w-xs text-xs text-[#6b7280]">
+                  {isSeller
+                    ? "Upload a skill zip or folder on the sell page to populate the file viewer."
+                    : "The seller has not uploaded the skill package yet."}
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Tabs — dynamic from manifest text files only */}
+                {displayTabs.length > 0 && (
+                  <div className="-mx-px flex flex-nowrap gap-0 overflow-x-auto border-b border-[#eceef5] bg-white [-webkit-overflow-scrolling:touch]">
+                    {displayTabs.map((tab) => (
                       <button
+                        key={tab}
                         type="button"
-                        onClick={() => handleFileSelect(file)}
-                        className={`w-full truncate rounded px-2 py-1 text-left hover:bg-[#f5f6fa] ${
-                          activeFile === file
-                            ? "bg-[#eef2ff] text-[#1d4ed8]"
-                            : ""
+                        onClick={() => handleFileSelect(tab)}
+                        className={`shrink-0 border-b-2 px-3 py-3 font-mono text-[11px] sm:px-4 sm:text-xs ${
+                          activeFile === tab
+                            ? "-mb-px border-black font-medium text-[#0f1222]"
+                            : "border-transparent text-[#8b90a3] hover:text-[#5c6178]"
                         }`}
                       >
-                        {file.split("/").pop()}
+                        {tab.split("/").pop()}
                       </button>
-                    </li>
-                  ))}
-                </ul>
-                {listing.fileSizeBytes ? (
-                  <p className="mt-4 text-[10px] text-[#b4b8c9]">
-                    {formatBytes(listing.fileSizeBytes)} total
-                  </p>
-                ) : null}
-              </div>
+                    ))}
+                  </div>
+                )}
 
-              {/* File content */}
-              <div className="relative min-h-[280px] flex-1 bg-white sm:min-h-[320px]">
-                <div
-                  className={`h-full p-4 sm:p-6 ${hasAccess ? "" : "pointer-events-none select-none blur-sm"}`}
-                  aria-hidden={!hasAccess}
-                >
-                  {/* Loading spinner for remote fetch */}
-                  {fetchingFile === activeFile ? (
-                    <div className="flex h-full min-h-[200px] items-center justify-center">
-                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#e5e7eb] border-t-[#0f1222]" />
-                    </div>
-                  ) : activeManifestFile && isImageFile(activeFile) ? (
-                    // Image file preview
-                    <div className="flex flex-col items-start gap-2">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={activeManifestFile.url}
-                        alt={activeFile}
-                        className="max-h-[400px] max-w-full border border-[#e5e7eb] object-contain"
-                      />
-                      <p className="text-xs text-[#9aa0b5]">{activeFile}</p>
-                    </div>
-                  ) : activeContent !== null ? (
-                    // Text / code content
-                    <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-[#1e3a5f]">
-                      {activeContent}
-                    </pre>
-                  ) : activeManifestFile ? (
-                    // Unsupported file type
-                    <p className="text-xs text-[#9aa0b5]">
-                      Preview not available for this file type.{" "}
-                      <a
-                        href={activeManifestFile.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline hover:text-[#0f1222]"
-                      >
-                        Open file
-                      </a>
+                <div className="flex flex-col md:flex-row">
+                  {/* File tree */}
+                  <div className="w-full shrink-0 border-b border-[#eceef5] bg-white p-4 font-mono text-xs text-[#5c6178] md:w-52 md:border-b-0 md:border-r">
+                    <p className="mb-3 text-[10px] tracking-wide text-[#b4b8c9]">
+                      src / <span className="text-[#c5c9d6]">({fileTree.length} files)</span>
                     </p>
-                  ) : (
-                    <p className="text-xs text-[#9aa0b5]">Select a file to preview its contents.</p>
-                  )}
+                    <ul className="space-y-1">
+                      {fileTree.map((file) => (
+                        <li key={file}>
+                          <button
+                            type="button"
+                            onClick={() => handleFileSelect(file)}
+                            className={`w-full truncate rounded px-2 py-1 text-left hover:bg-[#f5f6fa] ${
+                              activeFile === file ? "bg-[#eef2ff] text-[#1d4ed8]" : ""
+                            }`}
+                            title={file}
+                          >
+                            {file.split("/").pop()}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    {listing.fileSizeBytes ? (
+                      <p className="mt-4 text-[10px] text-[#b4b8c9]">
+                        {formatBytes(listing.fileSizeBytes)} total
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {/* File content */}
+                  <div className="relative min-h-[280px] flex-1 bg-white sm:min-h-[320px]">
+                    <div
+                      className={`h-full p-4 sm:p-6 ${hasAccess ? "" : "pointer-events-none select-none blur-sm"}`}
+                      aria-hidden={!hasAccess}
+                    >
+                      {fetchingFile === activeFile ? (
+                        <div className="flex h-full min-h-[200px] items-center justify-center">
+                          <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#e5e7eb] border-t-[#0f1222]" />
+                        </div>
+                      ) : activeManifestFile && isImageFile(activeFile) ? (
+                        <div className="flex flex-col items-start gap-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={activeManifestFile.url}
+                            alt={activeFile}
+                            className="max-h-[400px] max-w-full border border-[#e5e7eb] object-contain"
+                          />
+                          <p className="text-xs text-[#9aa0b5]">{activeFile}</p>
+                        </div>
+                      ) : activeContent !== null ? (
+                        <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-[#1e3a5f]">
+                          {activeContent}
+                        </pre>
+                      ) : activeManifestFile?.url ? (
+                        <p className="text-xs text-[#9aa0b5]">
+                          Preview not available for this file type.{" "}
+                          <a href={activeManifestFile.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-[#0f1222]">
+                            Open file
+                          </a>
+                        </p>
+                      ) : (
+                        <p className="text-xs text-[#9aa0b5]">
+                          {activeFile
+                            ? `Select a file from the tree to preview its contents.`
+                            : "Select a file to preview."}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Access check loading */}
+                    {!hasAccess && !accessChecked && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                        <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#e5e7eb] border-t-[#0f1222]" />
+                      </div>
+                    )}
+
+                    {/* Locked overlay — only for non-sellers who haven't purchased */}
+                    {!hasAccess && accessChecked && !isSeller && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-white/60 backdrop-blur-[2px]">
+                        <div className="flex flex-col items-center gap-3 rounded-xl border border-[#e5e7eb] bg-white px-8 py-7 shadow-[0_8px_32px_rgba(15,18,34,0.10)]">
+                          <svg className="h-10 w-10 text-[#0f1222]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                          </svg>
+                          <p className="font-mono text-[11px] font-semibold tracking-[0.18em] text-[#0f1222]">
+                            CONTENT LOCKED
+                          </p>
+                          <p className="max-w-[200px] text-center text-xs leading-relaxed text-[#6b7280]">
+                            Purchase this skill to read all files and documentation.
+                          </p>
+                          <button
+                            type="button"
+                            className="mt-1 w-full border border-black bg-black px-6 py-2.5 text-xs font-semibold tracking-[0.14em] text-white hover:bg-[#1a1d2e]"
+                            onClick={handleBuyNowClick}
+                          >
+                            PURCHASE — {formatPrice(listing.price)}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Seller: file uploaded but no download access */}
+                    {!hasAccess && accessChecked && isSeller && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/80">
+                        <p className="font-mono text-[11px] tracking-[0.14em] text-[#9aa0b5]">
+                          UPLOAD PENDING
+                        </p>
+                        <p className="max-w-[220px] text-center text-xs text-[#6b7280]">
+                          File paths are visible but download links are not yet active.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-
-                {/* Access check loading */}
-                {!hasAccess && !accessChecked && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/70">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#e5e7eb] border-t-[#0f1222]" />
-                  </div>
-                )}
-
-                {/* Locked overlay — only for non-sellers who haven't purchased */}
-                {!hasAccess && accessChecked && !isSeller && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-white/60 backdrop-blur-[2px]">
-                    <div className="flex flex-col items-center gap-3 rounded-xl border border-[#e5e7eb] bg-white px-8 py-7 shadow-[0_8px_32px_rgba(15,18,34,0.10)]">
-                      <svg className="h-10 w-10 text-[#0f1222]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                      <p className="font-mono text-[11px] font-semibold tracking-[0.18em] text-[#0f1222]">
-                        CONTENT LOCKED
-                      </p>
-                      <p className="max-w-[200px] text-center text-xs leading-relaxed text-[#6b7280]">
-                        Purchase this skill to access all files and documentation.
-                      </p>
-                      <button
-                        type="button"
-                        className="mt-1 w-full border border-black bg-black px-6 py-2.5 text-xs font-semibold tracking-[0.14em] text-white hover:bg-[#1a1d2e]"
-                        onClick={handleBuyNowClick}
-                      >
-                        PURCHASE — {formatPrice(listing.price)}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Seller: no file uploaded yet */}
-                {!hasAccess && accessChecked && isSeller && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/80">
-                    <p className="font-mono text-[11px] tracking-[0.14em] text-[#9aa0b5]">
-                      NO FILE UPLOADED
-                    </p>
-                    <p className="max-w-[220px] text-center text-xs text-[#6b7280]">
-                      Upload a skill zip on the sell page to populate the file viewer.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+              </>
+            )}
           </div>
         </div>
       </div>
