@@ -336,6 +336,14 @@ export const paymentsApi = {
       }[];
     }>("/api/payments/seller/dashboard", {}, token);
   },
+
+  withdraw(token: string, amountCents: number, bankDetails?: Record<string, unknown>) {
+    return apiFetch<{ success: true; withdrawal: { _id: string; amount: number; status: string; createdAt: string } }>(
+      "/api/payments/withdraw",
+      { method: "POST", body: JSON.stringify({ amount: amountCents, bankDetails: bankDetails ?? {} }) },
+      token,
+    );
+  },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

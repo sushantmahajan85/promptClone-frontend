@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { type ListingCategoryOption, listingsApi } from "@/lib/api";
+import { type ListingCategoryOption, listingsApi, usersApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { FALLBACK_LISTING_CATEGORIES } from "@/lib/explore-categories";
 
@@ -238,6 +238,11 @@ export function UploadSkillPage() {
     setPublishError("");
     setPublishing(true);
     try {
+      // Ensure the user has seller role before creating the listing.
+      // Errors here are non-fatal (Dodo may not be configured); the role
+      // upgrade still happens locally.
+      await usersApi.becomeSeller(token).catch(() => {/* ignore */});
+
       const { listing } = await listingsApi.create(token, {
         title: skillName.trim() || "Untitled Skill",
         description: shortDescription.trim(),

@@ -232,7 +232,8 @@ export default function SellerDashboardPage() {
     withdrawDialogRef.current?.close();
   }, [withdrawSubmitting]);
 
-  const submitWithdraw = () => {
+  const submitWithdraw = async () => {
+    if (!token) return;
     setWithdrawError("");
     const raw = withdrawAmountInput.trim();
     if (!raw) {
@@ -257,14 +258,23 @@ export default function SellerDashboardPage() {
     }
 
     setWithdrawSubmitting(true);
-    globalThis.setTimeout(() => {
+    try {
+      await paymentsApi.withdraw(
+        token,
+        cents,
+        paymentDetails as unknown as Record<string, unknown>,
+      );
+      // Optimistically reduce pending balance and close dialog
       setData((prev) => ({
         ...prev,
         pendingPayouts: Math.max(0, prev.pendingPayouts - cents),
       }));
-      setWithdrawSubmitting(false);
       withdrawDialogRef.current?.close();
-    }, 450);
+    } catch (err) {
+      setWithdrawError(err instanceof Error ? err.message : "Withdrawal failed. Try again.");
+    } finally {
+      setWithdrawSubmitting(false);
+    }
   };
 
   const savePaymentDetails = () => {
@@ -302,7 +312,7 @@ export default function SellerDashboardPage() {
 
       <dialog
         ref={withdrawDialogRef}
-        className="fixed inset-0 z-50 m-0 box-border flex min-h-dvh w-full max-w-none items-center justify-center border-0 bg-transparent p-4 shadow-none backdrop:bg-black/45"
+        className="m-0 border-0 bg-transparent p-0 shadow-none backdrop:bg-black/45 [&:not([open])]:hidden"
         aria-labelledby="withdraw-dialog-title"
         onCancel={(e) => {
           if (withdrawSubmitting) e.preventDefault();
@@ -312,6 +322,7 @@ export default function SellerDashboardPage() {
           setWithdrawAmountInput("");
         }}
       >
+        <div className="fixed inset-0 z-50 flex min-h-dvh w-full items-center justify-center p-4">
         <div className="relative w-full max-w-md border border-[#e5e7eb] bg-white p-5 shadow-[0_20px_50px_rgba(15,18,34,0.18)] sm:p-6">
             <h2
               id="withdraw-dialog-title"
@@ -374,6 +385,7 @@ export default function SellerDashboardPage() {
               </button>
             </div>
           </div>
+        </div>
       </dialog>
 
       <main className="mx-auto w-full max-w-[1200px] flex-1 px-4 py-8 md:px-6">
