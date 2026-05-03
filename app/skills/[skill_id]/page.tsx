@@ -5,7 +5,7 @@ import type { ApiListing } from "@/lib/api";
 import { SkillDetailView } from "./skill-detail-view";
 
 type Props = Readonly<{
-  params: Promise<{ skill_id: string }>;
+  params: { skill_id: string };
 }>;
 
 async function fetchListing(id: string): Promise<ApiListing | null> {
@@ -24,7 +24,7 @@ async function fetchListing(id: string): Promise<ApiListing | null> {
 }
 
 export async function generateMetadata({ params }: Props) {
-  const { skill_id } = await params;
+  const { skill_id } = params;
   const listing = await fetchListing(skill_id);
   if (!listing) return { title: "Skill | SkillKart" };
   return {
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export default async function SkillPage({ params }: Props) {
-  const { skill_id } = await params;
+  const { skill_id } = params;
   const listing = await fetchListing(skill_id);
   if (!listing) notFound();
   return <SkillDetailView listing={listing} />;

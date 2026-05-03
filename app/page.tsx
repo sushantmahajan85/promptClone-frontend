@@ -1,5 +1,5 @@
-import { BrandLogo } from "@/components/brand-logo";
 import { FeaturedListings } from "@/components/featured-listings";
+import { LandingNavbar } from "@/components/landing-navbar";
 import Link from "next/link";
 
 export default function Home() {
@@ -12,39 +12,7 @@ export default function Home() {
           aria-hidden
         />
         <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6">
-          <header className="mb-16 flex flex-col gap-4 sm:mb-24">
-            <div className="flex items-center justify-between gap-3">
-              <BrandLogo
-                textClassName="text-lg font-semibold sm:text-xl"
-                iconSize={32}
-                className="min-w-0"
-              />
-              <div
-                className="h-8 w-8 shrink-0 rounded-full border border-[#d9dce7]"
-                aria-hidden
-              />
-            </div>
-            <nav className="flex flex-wrap gap-x-6 gap-y-2 border-t border-[#eef0f8] pt-4 text-sm text-[#7a7f93] sm:border-0 sm:pt-0">
-              <Link href="/explore" className="hover:text-[#0f1222]">
-                Explore
-              </Link>
-              <Link href="/sell" className="hover:text-[#0f1222]">
-                Sell
-              </Link>
-              <button
-                type="button"
-                className="bg-transparent p-0 hover:text-[#0f1222]"
-              >
-                Docs
-              </button>
-              <button
-                type="button"
-                className="bg-transparent p-0 hover:text-[#0f1222]"
-              >
-                Market
-              </button>
-            </nav>
-          </header>
+          <LandingNavbar />
 
           <div className="mx-auto max-w-3xl text-center">
           <p className="mx-auto mb-6 inline-block max-w-full border border-[#d9dceb] px-3 py-1 text-[10px] font-semibold tracking-[0.2em] text-[#5f6785] sm:mb-8 sm:text-[11px] sm:tracking-[0.24em]">
@@ -69,7 +37,7 @@ export default function Home() {
               BROWSE SKILLS
             </Link>
             <Link
-              href="/sell"
+              href="/sell/upload"
               className="border border-[#d8dcea] px-6 py-3 text-center text-xs font-semibold tracking-[0.15em] text-[#1e243d] sm:px-7 sm:tracking-[0.2em]"
             >
               LIST A SKILL
@@ -162,7 +130,7 @@ export default function Home() {
             EXPLORE MARKETPLACE
           </Link>
           <Link
-            href="/sell"
+            href="/sell/dashboard"
             className="flex h-11 items-center justify-center border border-[#d8dcea] px-7 text-xs font-semibold tracking-[0.15em] text-[#1e243d] sm:tracking-[0.2em]"
           >
             START SELLING

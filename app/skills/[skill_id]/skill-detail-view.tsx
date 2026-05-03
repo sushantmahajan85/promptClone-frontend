@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 
-import { BrandLogo } from "@/components/brand-logo";
-import { NavAuth } from "@/components/nav-auth";
+import { AppNavbar } from "@/components/app-navbar";
 import { type ApiListing, formatBytes, formatPrice, listingsApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -63,6 +62,16 @@ export function SkillDetailView({
   const hasAccess = accessChecked && !!listing.fileUrl;
 
   const manifestFiles = listing.packageManifest?.files ?? [];
+  const demoImages = manifestFiles.filter(
+    (file) =>
+      file.resourceType.startsWith("image/") ||
+      /\.(png|jpe?g|webp|gif|svg)$/i.test(file.path),
+  );
+  const demoVideos = manifestFiles.filter(
+    (file) =>
+      file.resourceType.startsWith("video/") ||
+      /\.(mp4|webm|mov|m4v)$/i.test(file.path),
+  );
   const fileTree =
     manifestFiles.length > 0
       ? manifestFiles.map((f) => f.path)
@@ -137,46 +146,7 @@ export default skill.pipeline;`}
 
   return (
     <div className="flex min-h-screen flex-col bg-white pb-28 text-[#0f1222]">
-      <header className="sticky top-0 z-20 border-b border-[#eceef5] bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-4 py-3 md:flex-row md:flex-wrap md:items-center md:gap-x-4 md:px-6 lg:flex-nowrap">
-          <div className="flex items-center justify-between gap-3">
-            <BrandLogo className="shrink-0" />
-            <div className="flex shrink-0 items-center gap-3 md:hidden">
-              <NavAuth />
-            </div>
-          </div>
-          <nav className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 border-t border-[#eef0f8] pt-3 text-sm text-[#5c6178] md:flex-1 md:justify-center md:border-0 md:pt-0 md:gap-7">
-            <Link
-              href="/explore"
-              className="border-b-2 border-[#2563eb] pb-0.5 font-medium text-[#0f1222]"
-            >
-              Explore
-            </Link>
-            <Link href="/sell" className="hover:text-[#0f1222]">
-              Sell
-            </Link>
-            <button type="button" className="bg-transparent p-0 hover:text-[#0f1222]">
-              Docs
-            </button>
-            <button type="button" className="bg-transparent p-0 hover:text-[#0f1222]">
-              Market
-            </button>
-          </nav>
-          <div className="relative min-w-0 w-full md:max-w-md lg:min-w-[240px] lg:flex-1">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm text-[#8b90a3]">
-              &gt;_
-            </span>
-            <input
-              type="search"
-              placeholder="Search skills..."
-              className="h-9 w-full rounded-lg border border-[#e8eaf2] bg-[#f5f6fa] py-2 pl-10 pr-3 text-sm outline-none placeholder:text-[#9aa0b5]"
-            />
-          </div>
-          <div className="hidden shrink-0 items-center gap-3 md:flex">
-            <NavAuth />
-          </div>
-        </div>
-      </header>
+      <AppNavbar activeTab="explore" />
 
       <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-8 md:px-6">
         {/* Breadcrumb */}
@@ -243,6 +213,73 @@ export default skill.pipeline;`}
             </button>
           </div>
         </div>
+
+        <section className="mt-8 border border-[#eceef5] bg-[#fafbff] p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">
+                [ DEMO WALKTHROUGH ]
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-[#0f1222]">
+                Setup and usage preview
+              </h2>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {listing.coverImageUrl && (
+              <article className="overflow-hidden border border-[#e5e7eb] bg-white">
+                <img
+                  src={listing.coverImageUrl}
+                  alt={`${listing.title} cover demo`}
+                  className="h-52 w-full object-cover"
+                />
+                <p className="border-t border-[#e5e7eb] px-3 py-2 text-xs text-[#6b7280]">
+                  Cover preview
+                </p>
+              </article>
+            )}
+
+            {demoVideos.map((video) => (
+              <article
+                key={video.path}
+                className="overflow-hidden border border-[#e5e7eb] bg-white"
+              >
+                <video controls preload="metadata" className="h-52 w-full object-cover">
+                  <source src={video.url} type={video.resourceType || "video/mp4"} />
+                  <track kind="captions" srcLang="en" label="English captions" />
+                  Your browser does not support this video tag.
+                </video>
+                <p className="border-t border-[#e5e7eb] px-3 py-2 text-xs text-[#6b7280]">
+                  {video.path}
+                </p>
+              </article>
+            ))}
+
+            {demoImages.map((image) => (
+              <article
+                key={image.path}
+                className="overflow-hidden border border-[#e5e7eb] bg-white"
+              >
+                <img
+                  src={image.url}
+                  alt={`${listing.title} demo ${image.path}`}
+                  className="h-52 w-full object-cover"
+                />
+                <p className="border-t border-[#e5e7eb] px-3 py-2 text-xs text-[#6b7280]">
+                  {image.path}
+                </p>
+              </article>
+            ))}
+          </div>
+
+          {!listing.coverImageUrl && demoImages.length === 0 && demoVideos.length === 0 && (
+            <p className="mt-4 border border-dashed border-[#d1d5db] bg-white px-4 py-4 text-sm text-[#6b7280]">
+              Demo media will appear here once the seller uploads setup screenshots
+              or walkthrough videos.
+            </p>
+          )}
+        </section>
 
         {/* Body */}
         <div className="mt-12 flex flex-col gap-8 lg:flex-row">

@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import { BrandLogo } from "@/components/brand-logo";
-import { NavAuth } from "@/components/nav-auth";
+import { AppNavbar } from "@/components/app-navbar";
 import { type ApiListing, formatBytes, formatPrice, listingsApi } from "@/lib/api";
 
 function IconGrid({ active }: Readonly<{ active: boolean }>) {
@@ -100,30 +99,7 @@ export default function ExplorePage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-[#0f1222]">
-      <header className="sticky top-0 z-20 border-b border-[#eceef5] bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3 md:flex-nowrap md:gap-6 md:px-6">
-          <BrandLogo className="shrink-0" />
-
-          <nav className="flex min-w-0 flex-1 basis-full flex-wrap items-center justify-end gap-x-4 gap-y-2 text-sm text-[#5c6178] sm:basis-auto sm:justify-end md:gap-7">
-            <Link
-              href="/explore"
-              className="border-b-2 border-black pb-0.5 font-medium text-black"
-            >
-              Explore
-            </Link>
-            <Link href="/sell" className="hover:text-[#0f1222]">
-              Sell
-            </Link>
-            <button type="button" className="bg-transparent p-0 hover:text-[#0f1222]">
-              Docs
-            </button>
-            <button type="button" className="bg-transparent p-0 hover:text-[#0f1222]">
-              Market
-            </button>
-            <NavAuth />
-          </nav>
-        </div>
-      </header>
+      <AppNavbar activeTab="explore" />
 
       <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-8 md:px-6">
         <main className="min-w-0">

@@ -1,18 +1,18 @@
 "use client";
 
-import { BrandLogo } from "@/components/brand-logo";
-import { NavAuth } from "@/components/nav-auth";
+import { AppNavbar } from "@/components/app-navbar";
 import { zipSync } from "fflate";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { listingsApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 const STEPS = [
   { id: 1, label: "DETAILS" },
-  { id: 2, label: "REVIEW" },
+  { id: 2, label: "DEMO" },
+  { id: 3, label: "REVIEW" },
 ] as const;
 
 const AGENT_OPTIONS = [
@@ -34,11 +34,13 @@ function stepCircleClasses(active: boolean, done: boolean): string {
   return "bg-[#f3f4f6] text-[#9ca3af]";
 }
 
-export default function SellPage() {
+export function UploadSkillPage() {
   const { token, user, loading: authLoading } = useAuth();
   const router = useRouter();
   const uploadFieldId = useId();
+  const demoMediaFieldId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const demoMediaInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(1);
   const [skillName, setSkillName] = useState("");
   const [shortDescription, setShortDescription] = useState("");
@@ -53,6 +55,7 @@ export default function SellPage() {
   const [folderFiles, setFolderFiles] = useState<File[]>([]);
   const [skillsMdContent, setSkillsMdContent] = useState<string | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [demoMediaFiles, setDemoMediaFiles] = useState<File[]>([]);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState("");
   const [publishedId, setPublishedId] = useState("");
@@ -62,6 +65,10 @@ export default function SellPage() {
 
   const onBrowseClick = useCallback(() => {
     fileInputRef.current?.click();
+  }, []);
+
+  const onBrowseDemoMediaClick = useCallback(() => {
+    demoMediaInputRef.current?.click();
   }, []);
 
   const addTag = useCallback(() => {
@@ -144,6 +151,11 @@ export default function SellPage() {
       router.push("/auth/login");
       return;
     }
+    if (demoMediaFiles.length === 0) {
+      setPublishError("Attach at least one demo image or demo video before publishing.");
+      return;
+    }
+
     setPublishError("");
     setPublishing(true);
     try {
@@ -166,7 +178,9 @@ export default function SellPage() {
       }
 
       if (fileToUpload) {
-        await listingsApi.upload(token, listing._id, fileToUpload);
+        const firstDemoImage =
+          demoMediaFiles.find((file) => file.type.startsWith("image/")) ?? undefined;
+        await listingsApi.upload(token, listing._id, fileToUpload, firstDemoImage);
       }
       await listingsApi.update(token, listing._id, { status: "pending-review" });
       setPublishedId(listing.listingHashId);
@@ -187,6 +201,7 @@ export default function SellPage() {
     folderFiles,
     folderName,
     buildZip,
+    demoMediaFiles,
   ]);
 
   useEffect(() => {
@@ -209,36 +224,29 @@ export default function SellPage() {
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [agentMenuOpen]);
 
+  const removeDemoMediaFile = useCallback((name: string) => {
+    setDemoMediaFiles((prev) => prev.filter((file) => file.name !== name));
+  }, []);
+
+  const demoMediaPreviews = useMemo(
+    () =>
+      demoMediaFiles.map((file) => ({
+        key: `${file.name}-${file.size}`,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      })),
+    [demoMediaFiles],
+  );
+
+  useEffect(() => {
+    return () => {
+      demoMediaPreviews.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+    };
+  }, [demoMediaPreviews]);
+
   return (
     <div className="flex min-h-screen flex-col bg-white text-[#0f1222]">
-      <header className="sticky top-0 z-20 border-b border-[#eceef5] bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3 md:flex-nowrap md:justify-between md:px-6">
-          <BrandLogo className="shrink-0" />
-          <nav className="order-3 flex w-full min-w-0 flex-wrap items-center gap-x-5 gap-y-2 border-t border-[#eef0f8] pt-3 text-sm text-[#5c6178] md:order-none md:w-auto md:flex-1 md:justify-center md:border-0 md:pt-0 md:gap-8">
-            <Link href="/explore" className="hover:text-[#0f1222]">
-              Explore
-            </Link>
-            <span className="border-b-2 border-[#2563eb] pb-0.5 font-medium text-[#0f1222]">
-              Sell
-            </span>
-            <button
-              type="button"
-              className="bg-transparent p-0 hover:text-[#0f1222]"
-            >
-              Docs
-            </button>
-            <button
-              type="button"
-              className="bg-transparent p-0 hover:text-[#0f1222]"
-            >
-              Market
-            </button>
-          </nav>
-          <div className="ml-auto flex shrink-0 items-center gap-3 md:ml-0">
-            <NavAuth />
-          </div>
-        </div>
-      </header>
+      <AppNavbar activeTab="sell" maxWidthClass="max-w-[1200px]" />
 
       <main className="mx-auto w-full max-w-[1200px] flex-1 px-4 py-8 sm:py-10 md:px-6">
         <p className="break-all font-mono text-[11px] tracking-wide text-[#2563eb] sm:text-xs">
@@ -256,6 +264,10 @@ export default function SellPage() {
         >
           View seller dashboard
         </Link>
+        <p className="mt-2 text-xs text-[#7a8097]">
+          Route updated: this upload flow is now available at{" "}
+          <span className="font-mono">/sell/upload</span>.
+        </p>
 
         <div className="mt-8 flex flex-wrap items-center gap-4 sm:mt-10 sm:gap-6 md:gap-10">
           {STEPS.map((s) => {
@@ -664,16 +676,151 @@ export default function SellPage() {
           <div className="mt-8 flex justify-stretch sm:justify-end">
             <button
               type="button"
-              onClick={() => setStep(2)}
+              onClick={() => {
+                if (!folderName && !uploadFile) {
+                  setPublishError(
+                    "Upload a skill zip or folder before continuing.",
+                  );
+                  return;
+                }
+                setPublishError("");
+                setStep(2);
+              }}
               className="w-full border border-black bg-black px-6 py-3 text-sm font-semibold tracking-wide text-white hover:bg-[#1a1d2e] sm:w-auto sm:px-8"
             >
-              NEXT: REVIEW →
+              NEXT: DEMO MEDIA →
             </button>
           </div>
         )}
 
         {step === 2 && (
-          <div className="mt-10 max-w-2xl border border-[#e5e7eb] bg-[#fafafa] p-5 sm:mt-12 sm:p-8">
+          <div className="mx-auto mt-10 w-full max-w-2xl border border-[#e5e7eb] bg-[#fafafa] p-5 sm:mt-12 sm:p-8">
+            <p className="font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">
+              [ DEMO MEDIA ]
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+              Add setup walkthrough media
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-[#5c6178]">
+              Attach at least one image or video that explains how to set up and use your skill.
+            </p>
+            <input
+              id={demoMediaFieldId}
+              ref={demoMediaInputRef}
+              type="file"
+              multiple
+              accept="image/*,video/*"
+              className="sr-only"
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                if (files.length === 0) return;
+                setDemoMediaFiles((prev) => [...prev, ...files]);
+                e.currentTarget.value = "";
+              }}
+            />
+            <div className="mt-6 border border-dashed border-[#d1d5db] bg-white p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-[#4b5563]">
+                  Upload walkthrough screenshots, GIFs, or short videos.
+                </p>
+                <button
+                  type="button"
+                  onClick={onBrowseDemoMediaClick}
+                  className="border border-black bg-black px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-white"
+                >
+                  ADD MEDIA
+                </button>
+              </div>
+              {demoMediaFiles.length > 0 ? (
+                <ul className="mt-4 space-y-3">
+                  {demoMediaPreviews.map((item) => (
+                    <li
+                      key={item.key}
+                      className="border border-[#e5e7eb] bg-[#fafafa] p-3 text-xs"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="truncate text-[#374151]">
+                          {item.file.name}{" "}
+                          <span className="text-[#9aa0b5]">
+                            ({(item.file.size / 1024 / 1024).toFixed(2)} MB)
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeDemoMediaFile(item.file.name)}
+                          className="shrink-0 text-[#6b7280] hover:text-[#111827]"
+                          aria-label={`Remove ${item.file.name}`}
+                        >
+                          Remove
+                        </button>
+                      </div>
+
+                      {item.file.type.startsWith("image/") && (
+                        <img
+                          src={item.previewUrl}
+                          alt={`Preview for ${item.file.name}`}
+                          className="mt-3 h-44 w-full border border-[#e5e7eb] object-cover"
+                        />
+                      )}
+
+                      {item.file.type.startsWith("video/") && (
+                        <video
+                          controls
+                          preload="metadata"
+                          className="mt-3 h-44 w-full border border-[#e5e7eb] bg-black object-cover"
+                        >
+                          <source src={item.previewUrl} type={item.file.type} />
+                          <track kind="captions" srcLang="en" label="English captions" />
+                          Your browser does not support this video tag.
+                        </video>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-4 text-xs text-[#9aa0b5]">
+                  No demo media attached yet.
+                </p>
+              )}
+            </div>
+            {publishError && (
+              <p className="mt-4 border border-red-200 bg-red-50 px-3 py-2 font-mono text-xs text-red-700">
+                {publishError}
+              </p>
+            )}
+            <div className="mt-8 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setPublishError("");
+                  setStep(1);
+                }}
+                className="w-full border border-[#e5e7eb] bg-white px-6 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] sm:w-auto"
+              >
+                ← Back to details
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (demoMediaFiles.length === 0) {
+                    setPublishError(
+                      "Attach at least one demo image or video before continuing.",
+                    );
+                    return;
+                  }
+                  setPublishError("");
+                  setStep(3);
+                }}
+                className="w-full border border-black bg-black px-6 py-2.5 text-sm font-semibold text-white sm:w-auto"
+              >
+                NEXT: REVIEW →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="mx-auto mt-10 w-full max-w-2xl border border-[#e5e7eb] bg-[#fafafa] p-5 sm:mt-12 sm:p-8">
             <p className="font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">
               [ REVIEW ]
             </p>
@@ -764,7 +911,58 @@ export default function SellPage() {
                         : "— (not set)"}
                     </dd>
                   </div>
+                  <div>
+                    <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
+                      DEMO MEDIA
+                    </dt>
+                    <dd className="mt-1 text-[#3d4459]">
+                      {demoMediaFiles.length > 0
+                        ? `${demoMediaFiles.length} file(s) attached`
+                        : "— (required)"}
+                    </dd>
+                  </div>
                 </dl>
+
+                {demoMediaPreviews.length > 0 && (
+                  <div className="mt-6 border border-[#e5e7eb] bg-white p-4">
+                    <p className="font-mono text-[10px] tracking-[0.16em] text-[#9aa0b5]">
+                      [ DEMO MEDIA PREVIEW ]
+                    </p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {demoMediaPreviews.map((item) => (
+                        <div
+                          key={`review-${item.key}`}
+                          className="overflow-hidden border border-[#e5e7eb] bg-[#fafafa]"
+                        >
+                          {item.file.type.startsWith("image/") ? (
+                            <img
+                              src={item.previewUrl}
+                              alt={`Review preview for ${item.file.name}`}
+                              className="h-40 w-full object-cover"
+                            />
+                          ) : item.file.type.startsWith("video/") ? (
+                            <video
+                              controls
+                              preload="metadata"
+                              className="h-40 w-full bg-black object-cover"
+                            >
+                              <source src={item.previewUrl} type={item.file.type} />
+                              <track kind="captions" srcLang="en" label="English captions" />
+                              Your browser does not support this video tag.
+                            </video>
+                          ) : (
+                            <div className="flex h-40 items-center justify-center px-3 text-xs text-[#6b7280]">
+                              Preview unavailable for this file type.
+                            </div>
+                          )}
+                          <p className="truncate border-t border-[#e5e7eb] px-2 py-2 text-[11px] text-[#4b5563]">
+                            {item.file.name}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {publishError && (
                   <p className="mt-4 border border-red-200 bg-red-50 px-3 py-2 font-mono text-xs text-red-700">
@@ -785,10 +983,10 @@ export default function SellPage() {
                 <div className="mt-8 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:flex-wrap">
                   <button
                     type="button"
-                    onClick={() => setStep(1)}
+                    onClick={() => setStep(2)}
                     className="w-full border border-[#e5e7eb] bg-white px-6 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] sm:w-auto"
                   >
-                    ← Back to details
+                    ← Back to demo media
                   </button>
                   <button
                     type="button"
@@ -840,6 +1038,20 @@ export default function SellPage() {
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+export default function SellPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/sell/dashboard");
+  }, [router]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-white">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e5e7eb] border-t-[#0f1222]" />
     </div>
   );
 }
