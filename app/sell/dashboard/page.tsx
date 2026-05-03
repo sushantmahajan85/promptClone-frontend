@@ -268,13 +268,19 @@ export default function SellerDashboardPage() {
         paymentDetails as unknown as Record<string, unknown>,
       );
       // Optimistically update balance and prepend to history
+      const optimisticWithdrawal: ApiWithdrawal = {
+        _id: withdrawal._id,
+        type: "withdrawal",
+        sellerId: "",
+        amount: withdrawal.amount,
+        status: withdrawal.status as ApiWithdrawal["status"],
+        bankDetails: paymentDetails as unknown as Record<string, unknown>,
+        createdAt: withdrawal.createdAt,
+      };
       setData((prev) => ({
         ...prev,
         pendingPayouts: Math.max(0, prev.pendingPayouts - cents),
-        withdrawalHistory: [
-          { ...withdrawal, type: "withdrawal" as const, bankDetails: paymentDetails as unknown as Record<string, unknown> },
-          ...prev.withdrawalHistory,
-        ],
+        withdrawalHistory: [optimisticWithdrawal, ...prev.withdrawalHistory],
       }));
       withdrawDialogRef.current?.close();
     } catch (err) {
