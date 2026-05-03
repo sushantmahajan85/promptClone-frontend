@@ -250,6 +250,12 @@ export default function SellPage() {
         <p className="mt-2 text-sm text-[#5c6178]">
           Convert your local logic into a portable AI skill primitive.
         </p>
+        <Link
+          href="/sell/dashboard"
+          className="mt-4 inline-flex border border-[#d9dce7] bg-white px-4 py-2 text-xs font-semibold tracking-wide text-[#0f1222] hover:bg-[#f5f6fa]"
+        >
+          View seller dashboard
+        </Link>
 
         <div className="mt-8 flex flex-wrap items-center gap-4 sm:mt-10 sm:gap-6 md:gap-10">
           {STEPS.map((s) => {
