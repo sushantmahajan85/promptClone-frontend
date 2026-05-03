@@ -130,7 +130,7 @@ export default function Home() {
             EXPLORE MARKETPLACE
           </Link>
           <Link
-            href="/sell/dashboard"
+            href="/sell/upload"
             className="flex h-11 items-center justify-center border border-[#d8dcea] px-7 text-xs font-semibold tracking-[0.15em] text-[#1e243d] sm:tracking-[0.2em]"
           >
             START SELLING

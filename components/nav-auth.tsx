@@ -80,6 +80,14 @@ export function NavAuth() {
           >
             My skills set
           </Link>
+          <Link
+            href="/sell/dashboard"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="block px-3 py-2 text-sm text-[#0f1222] hover:bg-[#f5f6fa]"
+          >
+            Seller dashboard
+          </Link>
           <button
             type="button"
             role="menuitem"

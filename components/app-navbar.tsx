@@ -30,7 +30,7 @@ export function AppNavbar({
           <Link href="/explore" className={tabClasses(activeTab === "explore")}>
             Explore
           </Link>
-          <Link href="/sell/dashboard" className={tabClasses(activeTab === "sell")}>
+          <Link href="/sell/upload" className={tabClasses(activeTab === "sell")}>
             Sell
           </Link>
           <Link href="/my-skills" className={tabClasses(activeTab === "my-skills")}>

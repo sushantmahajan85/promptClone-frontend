@@ -51,6 +51,13 @@ export type ApiListing = {
   status: ListingStatus;
   averageRating?: number;
   reviewCount?: number;
+  /** Backend taxonomy slug (e.g. `seo-growth`). */
+  category?: string;
+  /** Optional display label from backend; else UI maps `category` via explore categories. */
+  categoryLabel?: string;
+  /** Total purchases / installs for trust signals on cards. */
+  purchaseCount?: number;
+  featured?: boolean;
   sellerId: {
     _id: string;
     name: string;
@@ -73,11 +80,27 @@ export type AuthPayload = {
   user: ApiUser;
 };
 
+export type ListingsSortBy =
+  | "newest"
+  | "price_asc"
+  | "price_desc"
+  | "top_rated"
+  | "popular";
+
 export type ListingsQuery = {
   q?: string;
-  sortBy?: "newest" | "price_asc" | "price_desc" | "top_rated";
+  sortBy?: ListingsSortBy;
+  /** Filter by backend category slug. */
+  category?: string;
+  /** When true, backend uses semantic / natural-language matching for `q`. */
+  semantic?: boolean;
   page?: number;
   limit?: number;
+};
+
+export type ListingCategoryOption = {
+  slug: string;
+  label: string;
 };
 
 // ─── Core fetch helper ────────────────────────────────────────────────────────
@@ -142,6 +165,8 @@ export const listingsApi = {
     const sp = new URLSearchParams();
     if (params.q) sp.set("q", params.q);
     if (params.sortBy) sp.set("sortBy", params.sortBy);
+    if (params.category) sp.set("category", params.category);
+    if (params.semantic) sp.set("semantic", "true");
     if (params.page != null) sp.set("page", String(params.page));
     if (params.limit != null) sp.set("limit", String(params.limit));
     const qs = sp.toString();
@@ -164,6 +189,13 @@ export const listingsApi = {
     );
   },
 
+  /** Public category list for explore pills (optional; UI falls back if missing). */
+  listCategories() {
+    return apiFetch<{ success: true; categories: ListingCategoryOption[] }>(
+      "/api/listings/categories",
+    );
+  },
+
   create(
     token: string,
     body: {
@@ -175,6 +207,8 @@ export const listingsApi = {
       llmCompatibility: string[];
       tags: string[];
       status: "draft";
+      /** Explore taxonomy slugs; send 1–2 entries (backend may store primary + optional secondary). */
+      categories?: string[];
     },
   ) {
     return apiFetch<{ success: true; listing: ApiListing }>(

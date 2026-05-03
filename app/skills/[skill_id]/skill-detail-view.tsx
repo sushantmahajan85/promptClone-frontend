@@ -60,6 +60,7 @@ export function SkillDetailView({
   // API omits fileUrl for users without access (variant C).
   // Its presence in the response means seller, admin, or completed-purchase buyer.
   const hasAccess = accessChecked && !!listing.fileUrl;
+  const purchaseActionLabel = hasAccess ? "Download skill" : "Buy Now";
 
   const manifestFiles = listing.packageManifest?.files ?? [];
   const demoImages = manifestFiles.filter(
@@ -72,6 +73,7 @@ export function SkillDetailView({
       file.resourceType.startsWith("video/") ||
       /\.(mp4|webm|mov|m4v)$/i.test(file.path),
   );
+  const primaryHeroVideo = demoVideos[0] ?? null;
   const fileTree =
     manifestFiles.length > 0
       ? manifestFiles.map((f) => f.path)
@@ -163,10 +165,40 @@ export default skill.pipeline;`}
           <span className="text-[#c5c9d6]" aria-hidden>
             &gt;
           </span>
-          <span aria-current="page" className="break-all text-[#9aa0b5]">
-            {listing.listingHashId}
+          <span
+            aria-current="page"
+            className="max-w-[min(100%,42rem)] truncate text-[#5c6178]"
+            title={listing.title}
+          >
+            {listing.title}
           </span>
         </nav>
+
+        {primaryHeroVideo ? (
+          <section className="mt-6 overflow-hidden rounded-xl border border-[#1e293b] bg-black shadow-[0_20px_50px_rgba(15,18,34,0.18)]">
+            <div className="relative aspect-video max-h-[min(72vh,820px)] w-full bg-[#0b0f1a]">
+              <video
+                className="h-full w-full object-contain"
+                controls
+                autoPlay
+                muted
+                playsInline
+                loop
+                preload="metadata"
+              >
+                <source
+                  src={primaryHeroVideo.url}
+                  type={primaryHeroVideo.resourceType || "video/mp4"}
+                />
+                <track kind="captions" srcLang="en" label="English captions" />
+              </video>
+            </div>
+            <p className="border-t border-white/10 bg-[#0f1222] px-4 py-2.5 text-xs text-white/85">
+              <span className="font-semibold text-white">Preview</span>
+              <span className="text-white/60"> — see what this skill does before you buy.</span>
+            </p>
+          </section>
+        ) : null}
 
         {/* Hero */}
         <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
@@ -180,36 +212,56 @@ export default skill.pipeline;`}
           </div>
           <div className="w-full shrink-0 border border-[#eceef5] bg-[#fafbff] p-5 sm:p-6 lg:min-w-[240px] lg:w-auto">
             <p className="text-[10px] font-semibold tracking-[0.2em] text-[#9aa0b5]">
-              DOWNLOAD
+              {hasAccess ? "DOWNLOAD" : "BUY"}
             </p>
             <p className="mt-1 text-2xl font-semibold tracking-tight">
               {formatPrice(listing.price)}
             </p>
             <p className="mt-2 text-sm leading-6 text-[#5c6178]">
-              One-time purchase. Download the skill folder and drop it into your
-              agent or workflow.
+              {hasAccess
+                ? "You have access. Download the skill folder and drop it into your agent or workflow."
+                : "One-time purchase. After checkout you can download the full skill package."}
             </p>
             <button
               id="skill-purchase-btn"
               type="button"
-              aria-label="Download skill"
-              className="mt-6 flex w-full items-center justify-center gap-2 border border-black bg-black py-3 text-xs font-semibold tracking-[0.15em] text-white"
+              aria-label={
+                hasAccess ? "Download skill" : `Buy Now for ${formatPrice(listing.price)}`
+              }
+              className="mt-6 flex w-full items-center justify-center gap-2 border border-black bg-black py-3 text-xs font-semibold tracking-[0.15em] text-white hover:bg-[#1a1d2e]"
             >
-              <svg
-                className="h-4 w-4 shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                />
-              </svg>
-              Download skill
+              {hasAccess ? (
+                <svg
+                  className="h-4 w-4 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  className="h-4 w-4 shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M16 11V7a4 4 0 00-8 0v4M5 9h14l-1 12H6L5 9z"
+                  />
+                </svg>
+              )}
+              {purchaseActionLabel}
             </button>
           </div>
         </div>
@@ -240,7 +292,7 @@ export default skill.pipeline;`}
               </article>
             )}
 
-            {demoVideos.map((video) => (
+            {(demoVideos.length > 1 ? demoVideos.slice(1) : []).map((video) => (
               <article
                 key={video.path}
                 className="overflow-hidden border border-[#e5e7eb] bg-white"
@@ -273,7 +325,9 @@ export default skill.pipeline;`}
             ))}
           </div>
 
-          {!listing.coverImageUrl && demoImages.length === 0 && demoVideos.length === 0 && (
+          {!listing.coverImageUrl &&
+            demoImages.length === 0 &&
+            demoVideos.length === 0 && (
             <p className="mt-4 border border-dashed border-[#d1d5db] bg-white px-4 py-4 text-sm text-[#6b7280]">
               Demo media will appear here once the seller uploads setup screenshots
               or walkthrough videos.
@@ -285,6 +339,24 @@ export default skill.pipeline;`}
         <div className="mt-12 flex flex-col gap-8 lg:flex-row">
           {/* Sidebar */}
           <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-72">
+            <div className="border border-[#eceef5] p-4">
+              <p className="font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">
+                [ PACKAGE DETAILS ]
+              </p>
+              <dl className="mt-3 space-y-3 text-xs">
+                <div>
+                  <dt className="text-[#9aa0b5]">Listing reference</dt>
+                  <dd className="break-all font-mono text-[#374151]">{listing.listingHashId}</dd>
+                </div>
+                {listing.fileSizeBytes == null ? null : (
+                  <div>
+                    <dt className="text-[#9aa0b5]">Download size</dt>
+                    <dd className="text-[#374151]">{formatBytes(listing.fileSizeBytes)}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+
             {listing.llmCompatibility.length > 0 && (
               <div className="border border-[#eceef5] p-4">
                 <p className="font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">

@@ -6,8 +6,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { listingsApi } from "@/lib/api";
+import { type ListingCategoryOption, listingsApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { FALLBACK_LISTING_CATEGORIES } from "@/lib/explore-categories";
 
 const STEPS = [
   { id: 1, label: "DETAILS" },
@@ -34,13 +35,25 @@ function stepCircleClasses(active: boolean, done: boolean): string {
   return "bg-[#f3f4f6] text-[#9ca3af]";
 }
 
+function uploadCategoryChipClass(selected: boolean, disabled: boolean): string {
+  const base =
+    "rounded-full border px-3 py-1.5 text-left text-[11px] font-medium transition-colors ";
+  if (selected) return `${base}border-black bg-black text-white`;
+  if (disabled) {
+    return `${base}cursor-not-allowed border-[#eceef5] bg-[#f9fafb] text-[#c5c9d6]`;
+  }
+  return `${base}border-[#e5e7eb] bg-white text-[#374151] hover:border-[#cbd5e1]`;
+}
+
 export function UploadSkillPage() {
   const { token, user, loading: authLoading } = useAuth();
   const router = useRouter();
   const uploadFieldId = useId();
   const demoMediaFieldId = useId();
+  const previewImageFieldId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const demoMediaInputRef = useRef<HTMLInputElement>(null);
+  const previewImageInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(1);
   const [skillName, setSkillName] = useState("");
   const [shortDescription, setShortDescription] = useState("");
@@ -56,6 +69,11 @@ export function UploadSkillPage() {
   const [skillsMdContent, setSkillsMdContent] = useState<string | null>(null);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [demoMediaFiles, setDemoMediaFiles] = useState<File[]>([]);
+  const [previewImageFile, setPreviewImageFile] = useState<File | null>(null);
+  const [categorySlugs, setCategorySlugs] = useState<string[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<ListingCategoryOption[]>([
+    ...FALLBACK_LISTING_CATEGORIES,
+  ]);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState("");
   const [publishedId, setPublishedId] = useState("");
@@ -69,6 +87,33 @@ export function UploadSkillPage() {
 
   const onBrowseDemoMediaClick = useCallback(() => {
     demoMediaInputRef.current?.click();
+  }, []);
+
+  const onBrowsePreviewImageClick = useCallback(() => {
+    previewImageInputRef.current?.click();
+  }, []);
+
+  const toggleCategorySlug = useCallback((slug: string) => {
+    setCategorySlugs((prev) => {
+      if (prev.includes(slug)) return prev.filter((s) => s !== slug);
+      if (prev.length >= 2) return prev;
+      return [...prev, slug];
+    });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    listingsApi
+      .listCategories()
+      .then(({ categories }) => {
+        if (!cancelled && categories.length > 0) setCategoryOptions(categories);
+      })
+      .catch(() => {
+        if (!cancelled) setCategoryOptions([...FALLBACK_LISTING_CATEGORIES]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const addTag = useCallback(() => {
@@ -151,6 +196,14 @@ export function UploadSkillPage() {
       router.push("/auth/login");
       return;
     }
+    if (categorySlugs.length === 0) {
+      setPublishError("Select at least one category before publishing.");
+      return;
+    }
+    if (!previewImageFile) {
+      setPublishError("Add a preview image for the explore listing before publishing.");
+      return;
+    }
     if (demoMediaFiles.length === 0) {
       setPublishError("Attach at least one demo image or demo video before publishing.");
       return;
@@ -162,11 +215,13 @@ export function UploadSkillPage() {
       const { listing } = await listingsApi.create(token, {
         title: skillName.trim() || "Untitled Skill",
         description: shortDescription.trim(),
+        shortDescription: shortDescription.trim() || undefined,
         price: priceCents,
         pricingModel: "one-time",
         llmCompatibility: supportedAgents,
         tags,
         status: "draft",
+        categories: categorySlugs.length > 0 ? categorySlugs : undefined,
       });
 
       // Determine the file to upload:
@@ -178,9 +233,7 @@ export function UploadSkillPage() {
       }
 
       if (fileToUpload) {
-        const firstDemoImage =
-          demoMediaFiles.find((file) => file.type.startsWith("image/")) ?? undefined;
-        await listingsApi.upload(token, listing._id, fileToUpload, firstDemoImage);
+        await listingsApi.upload(token, listing._id, fileToUpload, previewImageFile);
       }
       await listingsApi.update(token, listing._id, { status: "pending-review" });
       setPublishedId(listing.listingHashId);
@@ -202,6 +255,8 @@ export function UploadSkillPage() {
     folderName,
     buildZip,
     demoMediaFiles,
+    previewImageFile,
+    categorySlugs,
   ]);
 
   useEffect(() => {
@@ -244,6 +299,21 @@ export function UploadSkillPage() {
     };
   }, [demoMediaPreviews]);
 
+  const previewImageObjectUrl = useMemo(
+    () => (previewImageFile ? URL.createObjectURL(previewImageFile) : null),
+    [previewImageFile],
+  );
+
+  useEffect(() => {
+    if (!previewImageObjectUrl) return;
+    return () => URL.revokeObjectURL(previewImageObjectUrl);
+  }, [previewImageObjectUrl]);
+
+  const categoryLabelBySlug = useMemo(
+    () => Object.fromEntries(categoryOptions.map((c) => [c.slug, c.label])),
+    [categoryOptions],
+  );
+
   return (
     <div className="flex min-h-screen flex-col bg-white text-[#0f1222]">
       <AppNavbar activeTab="sell" maxWidthClass="max-w-[1200px]" />
@@ -258,13 +328,7 @@ export function UploadSkillPage() {
         <p className="mt-2 text-sm text-[#5c6178]">
           Convert your local logic into a portable AI skill primitive.
         </p>
-        <Link
-          href="/sell/dashboard"
-          className="mt-4 inline-flex border border-[#d9dce7] bg-white px-4 py-2 text-xs font-semibold tracking-wide text-[#0f1222] hover:bg-[#f5f6fa]"
-        >
-          View seller dashboard
-        </Link>
-        <p className="mt-2 text-xs text-[#7a8097]">
+        <p className="mt-3 text-xs text-[#7a8097]">
           Route updated: this upload flow is now available at{" "}
           <span className="font-mono">/sell/upload</span>.
         </p>
@@ -494,6 +558,37 @@ export function UploadSkillPage() {
                   appear below—click × on a chip to remove.
                 </p>
               </div>
+
+              <div className="mt-6 border-t border-[#e5e7eb] pt-6">
+                <span className="text-[10px] font-bold tracking-[0.12em] text-[#6b7280]">
+                  CATEGORIES
+                </span>
+                <p className="mt-1 text-[11px] leading-relaxed text-[#9aa0b5]">
+                  Same taxonomy as Explore. Pick one primary category, or up to two if your skill
+                  clearly spans two areas.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {categoryOptions.map((cat) => {
+                    const selected = categorySlugs.includes(cat.slug);
+                    const disabled = !selected && categorySlugs.length >= 2;
+                    return (
+                      <button
+                        key={cat.slug}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => toggleCategorySlug(cat.slug)}
+                        className={uploadCategoryChipClass(selected, disabled)}
+                      >
+                        {cat.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-[11px] text-[#9aa0b5]">
+                  Selected: {categorySlugs.length}/2 ·{" "}
+                  {categorySlugs.length === 0 ? "choose at least one to continue" : "OK"}
+                </p>
+              </div>
             </div>
 
             <div className="mt-8">
@@ -683,6 +778,10 @@ export function UploadSkillPage() {
                   );
                   return;
                 }
+                if (categorySlugs.length === 0) {
+                  setPublishError("Select at least one category.");
+                  return;
+                }
                 setPublishError("");
                 setStep(2);
               }}
@@ -696,6 +795,63 @@ export function UploadSkillPage() {
         {step === 2 && (
           <div className="mx-auto mt-10 w-full max-w-2xl border border-[#e5e7eb] bg-[#fafafa] p-5 sm:mt-12 sm:p-8">
             <p className="font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">
+              [ EXPLORE PREVIEW IMAGE ]
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+              Listing card image
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-[#5c6178]">
+              This image is shown on the Explore page as your skill&apos;s thumbnail—the first
+              thing buyers see next to your title. Use a clear screenshot or branded graphic (not
+              your walkthrough gallery).
+            </p>
+            <input
+              id={previewImageFieldId}
+              ref={previewImageInputRef}
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file || !file.type.startsWith("image/")) return;
+                setPreviewImageFile(file);
+                e.currentTarget.value = "";
+              }}
+            />
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={onBrowsePreviewImageClick}
+                className="border border-black bg-black px-4 py-2 text-[11px] font-semibold tracking-[0.12em] text-white"
+              >
+                CHOOSE PREVIEW IMAGE
+              </button>
+              {previewImageFile ? (
+                <button
+                  type="button"
+                  onClick={() => setPreviewImageFile(null)}
+                  className="text-xs font-medium text-[#6b7280] underline hover:text-[#111827]"
+                >
+                  Remove
+                </button>
+              ) : null}
+            </div>
+            {previewImageObjectUrl ? (
+              <div className="mt-4 overflow-hidden border border-[#e5e7eb] bg-white">
+                <img
+                  src={previewImageObjectUrl}
+                  alt="Explore listing preview"
+                  className="aspect-[16/10] w-full max-h-56 object-cover"
+                />
+                <p className="truncate border-t border-[#e5e7eb] px-3 py-2 font-mono text-[11px] text-[#6b7280]">
+                  {previewImageFile?.name}
+                </p>
+              </div>
+            ) : (
+              <p className="mt-4 text-xs text-[#9aa0b5]">No preview image selected yet.</p>
+            )}
+
+            <p className="font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5] mt-10">
               [ DEMO MEDIA ]
             </p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight">
@@ -802,6 +958,10 @@ export function UploadSkillPage() {
               <button
                 type="button"
                 onClick={() => {
+                  if (!previewImageFile) {
+                    setPublishError("Add a preview image for the Explore listing before continuing.");
+                    return;
+                  }
                   if (demoMediaFiles.length === 0) {
                     setPublishError(
                       "Attach at least one demo image or video before continuing.",
@@ -828,8 +988,8 @@ export function UploadSkillPage() {
               Confirm before publish
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-[#5c6178]">
-              Your skill stays private until you publish. Double-check the
-              metadata and artifact summary below.
+              Your skill stays private until you publish. Confirm everything from steps 1 and 2
+              below.
             </p>
             {publishedId ? (
               <div className="mt-8 border border-[#d1fae5] bg-[#ecfdf5] p-6 text-center">
@@ -855,7 +1015,10 @@ export function UploadSkillPage() {
               </div>
             ) : (
               <>
-                <dl className="mt-8 space-y-4 border-t border-[#e5e7eb] pt-6 text-sm">
+                <p className="mt-8 border-t border-[#e5e7eb] pt-6 font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">
+                  [ STEP 1 — DETAILS &amp; ARTIFACT ]
+                </p>
+                <dl className="mt-4 space-y-4 text-sm">
                   <div>
                     <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
                       SKILL NAME
@@ -882,15 +1045,14 @@ export function UploadSkillPage() {
                   </div>
                   <div>
                     <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
-                      FOLDER / FILE
+                      CATEGORIES
                     </dt>
-                    <dd className="mt-1 font-mono text-[#3d4459]">
-                      {folderName || "— (no folder selected)"}
-                      {folderFiles.length > 1 && (
-                        <span className="ml-2 text-[#9aa0b5]">
-                          ({folderFiles.length} files)
-                        </span>
-                      )}
+                    <dd className="mt-1 text-[#3d4459]">
+                      {categorySlugs.length > 0
+                        ? categorySlugs
+                            .map((slug) => categoryLabelBySlug[slug] ?? slug)
+                            .join(" · ")
+                        : "— (not set)"}
                     </dd>
                   </div>
                   <div>
@@ -913,17 +1075,59 @@ export function UploadSkillPage() {
                   </div>
                   <div>
                     <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
+                      FOLDER / ARTIFACT
+                    </dt>
+                    <dd className="mt-1 font-mono text-[#3d4459]">
+                      {uploadFile
+                        ? `ZIP: ${uploadFile.name}`
+                        : folderName || "— (no folder selected)"}
+                      {!uploadFile && folderFiles.length > 1 ? (
+                        <span className="ml-2 text-[#9aa0b5]">
+                          ({folderFiles.length} files)
+                        </span>
+                      ) : null}
+                    </dd>
+                  </div>
+                </dl>
+
+                <p className="mt-10 font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">
+                  [ STEP 2 — MEDIA ]
+                </p>
+                <dl className="mt-4 space-y-4 border-b border-[#e5e7eb] pb-6 text-sm">
+                  <div>
+                    <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
+                      EXPLORE PREVIEW IMAGE
+                    </dt>
+                    <dd className="mt-1 text-[#3d4459]">
+                      {previewImageFile?.name ?? "— (not set)"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="font-mono text-[10px] tracking-wide text-[#9aa0b5]">
                       DEMO MEDIA
                     </dt>
                     <dd className="mt-1 text-[#3d4459]">
                       {demoMediaFiles.length > 0
-                        ? `${demoMediaFiles.length} file(s) attached`
+                        ? `${demoMediaFiles.length} file(s): ${demoMediaFiles.map((f) => f.name).join(", ")}`
                         : "— (required)"}
                     </dd>
                   </div>
                 </dl>
 
-                {demoMediaPreviews.length > 0 && (
+                {previewImageObjectUrl ? (
+                  <div className="mt-6 border border-[#e5e7eb] bg-white p-4">
+                    <p className="font-mono text-[10px] tracking-[0.16em] text-[#9aa0b5]">
+                      [ PREVIEW IMAGE ]
+                    </p>
+                    <img
+                      src={previewImageObjectUrl}
+                      alt="Review: explore thumbnail"
+                      className="mt-3 aspect-[16/10] w-full max-h-52 border border-[#e5e7eb] object-cover"
+                    />
+                  </div>
+                ) : null}
+
+                {demoMediaPreviews.length > 0 ? (
                   <div className="mt-6 border border-[#e5e7eb] bg-white p-4">
                     <p className="font-mono text-[10px] tracking-[0.16em] text-[#9aa0b5]">
                       [ DEMO MEDIA PREVIEW ]
@@ -962,7 +1166,7 @@ export function UploadSkillPage() {
                       ))}
                     </div>
                   </div>
-                )}
+                ) : null}
 
                 {publishError && (
                   <p className="mt-4 border border-red-200 bg-red-50 px-3 py-2 font-mono text-xs text-red-700">
@@ -1046,7 +1250,7 @@ export default function SellPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/sell/dashboard");
+    router.replace("/sell/upload");
   }, [router]);
 
   return (

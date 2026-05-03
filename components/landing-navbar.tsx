@@ -16,7 +16,7 @@ export function LandingNavbar() {
           <Link href="/explore" className="hover:text-[#0f1222]">
             Explore
           </Link>
-          <Link href="/sell/dashboard" className="hover:text-[#0f1222]">
+          <Link href="/sell/upload" className="hover:text-[#0f1222]">
             Sell
           </Link>
           <button type="button" className="bg-transparent p-0 hover:text-[#0f1222]">

@@ -23,3 +23,11 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+/*
+ * Tailwind `display` utilities on <dialog> can override the UA rule that hides
+ * a closed dialog, so the in-flow dialog box becomes visible without showModal().
+ */
+dialog:not([open]) {
+  display: none !important;
+}
