@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNavbar } from "@/components/app-navbar";
-import { formatPrice } from "@/lib/api";
+import { formatPrice, paymentsApi, type ApiTransaction } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 
 type SellerDashboardPayload = {
   totalEarnings: number;
   pendingPayouts: number;
-  completedTransactions: unknown[];
+  completedTransactions: ApiTransaction[];
   listingBreakdown: {
     listingId: string;
     title: string;
@@ -154,7 +155,17 @@ const defaultPaymentDetails: SellerPaymentDetails = {
   institutionNumber: "",
 };
 
+const emptyDashboard: SellerDashboardPayload = {
+  totalEarnings: 0,
+  pendingPayouts: 0,
+  completedTransactions: [],
+  listingBreakdown: [],
+};
+
 export default function SellerDashboardPage() {
+  const { token, loading: authLoading } = useAuth();
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [dashboardError, setDashboardError] = useState("");
   const [paymentDetails, setPaymentDetails] =
     useState<SellerPaymentDetails>(defaultPaymentDetails);
   const [paymentError, setPaymentError] = useState("");
@@ -163,31 +174,46 @@ export default function SellerDashboardPage() {
   const [withdrawAmountInput, setWithdrawAmountInput] = useState("");
   const [withdrawError, setWithdrawError] = useState("");
   const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
-  const [data, setData] = useState<SellerDashboardPayload>({
-    totalEarnings: 1284200,
-    pendingPayouts: 74200,
-    completedTransactions: Array.from({ length: 34 }),
-    listingBreakdown: [
-      {
-        listingId: "demo-listing-1",
-        title: "Vision Parser Pro",
-        totalSales: 22,
-        totalEarnings: 924000,
-      },
-      {
-        listingId: "demo-listing-2",
-        title: "Excel Tracker Assistant",
-        totalSales: 8,
-        totalEarnings: 240000,
-      },
-      {
-        listingId: "demo-listing-3",
-        title: "Contract Summarizer",
-        totalSales: 4,
-        totalEarnings: 120200,
-      },
-    ],
-  });
+  const [data, setData] = useState<SellerDashboardPayload>(emptyDashboard);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!token) {
+      setDashboardLoading(false);
+      return;
+    }
+
+    let mounted = true;
+    setDashboardLoading(true);
+    setDashboardError("");
+
+    paymentsApi
+      .sellerDashboard(token)
+      .then((res) => {
+        if (mounted) {
+          setData({
+            totalEarnings: res.totalEarnings,
+            pendingPayouts: res.pendingPayouts,
+            completedTransactions: res.completedTransactions,
+            listingBreakdown: res.listingBreakdown,
+          });
+        }
+      })
+      .catch((err: unknown) => {
+        if (mounted) {
+          setDashboardError(
+            err instanceof Error ? err.message : "Failed to load dashboard data."
+          );
+        }
+      })
+      .finally(() => {
+        if (mounted) setDashboardLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [authLoading, token]);
 
   const totalSales = useMemo(
     () =>
@@ -374,6 +400,31 @@ export default function SellerDashboardPage() {
           that threshold, funds stay in pending until additional sales bring the
           balance up.
         </p>
+
+        {!authLoading && !token && (
+          <div className="mt-8 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Please{" "}
+            <Link href="/auth/login" className="font-semibold underline">
+              sign in
+            </Link>{" "}
+            to view your seller dashboard.
+          </div>
+        )}
+
+        {dashboardError && (
+          <div className="mt-8 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {dashboardError}
+          </div>
+        )}
+
+        {dashboardLoading ? (
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {["d-a", "d-b", "d-c"].map((id) => (
+              <div key={id} className="h-28 animate-pulse border border-[#e5e7eb] bg-[#f8f9fc]" />
+            ))}
+          </div>
+        ) : (
+          <>
             <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <article className="border border-[#e5e7eb] bg-[#fafafa] p-5">
                 <p className="font-mono text-[10px] tracking-[0.16em] text-[#9aa0b5]">
@@ -447,6 +498,8 @@ export default function SellerDashboardPage() {
                 </div>
               )}
             </section>
+          </>
+        )}
 
             <section className="mt-8 border border-[#e5e7eb] bg-white">
               <div className="border-b border-[#e5e7eb] px-4 py-3">

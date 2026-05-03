@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AppNavbar } from "@/components/app-navbar";
-import { type ApiListing, formatBytes, formatPrice, listingsApi } from "@/lib/api";
+import { type ApiListing, formatBytes, formatPrice, usersApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 export default function MySkillsPage() {
-  const { token, user, loading: authLoading } = useAuth();
+  const { token, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [purchasedSkills, setPurchasedSkills] = useState<ApiListing[]>([]);
@@ -24,28 +24,13 @@ export default function MySkillsPage() {
     setLoading(true);
     setError("");
 
-    listingsApi
-      .list({ page: 1, limit: 24, sortBy: "newest" })
-      .then(async ({ listings }) => {
-        const checks = await Promise.all(
-          listings.map(async (listing) => {
-            try {
-              const { listing: detailed } = await listingsApi.get(listing._id, token);
-              const isAccessible = Boolean(detailed.fileUrl);
-              const isOwned = detailed.sellerId?._id === user?._id;
-              return isAccessible && !isOwned ? detailed : null;
-            } catch {
-              return null;
-            }
-          }),
-        );
-
-        if (!mounted) return;
-        setPurchasedSkills(checks.filter((item): item is ApiListing => item !== null));
+    usersApi
+      .getMyPurchases(token)
+      .then(({ listings }) => {
+        if (mounted) setPurchasedSkills(listings);
       })
       .catch((err: unknown) => {
-        if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Failed to load your skills.");
+        if (mounted) setError(err instanceof Error ? err.message : "Failed to load your skills.");
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -54,9 +39,7 @@ export default function MySkillsPage() {
     return () => {
       mounted = false;
     };
-  }, [authLoading, token, user?._id]);
-
-  const hasSkills = useMemo(() => purchasedSkills.length > 0, [purchasedSkills]);
+  }, [authLoading, token]);
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-[#0f1222]">
@@ -100,7 +83,7 @@ export default function MySkillsPage() {
           </div>
         )}
 
-        {!loading && !error && hasSkills && (
+        {!loading && !error && purchasedSkills.length > 0 && (
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             {purchasedSkills.map((listing) => (
               <Link
@@ -124,7 +107,7 @@ export default function MySkillsPage() {
           </div>
         )}
 
-        {!loading && !error && !hasSkills && token && (
+        {!loading && !error && purchasedSkills.length === 0 && token && (
           <div className="mt-8 border border-dashed border-[#d1d5db] bg-[#fafafa] px-4 py-5 text-sm text-[#6b7280]">
             No purchased skills found yet. Browse the marketplace and buy a skill to
             see it here.

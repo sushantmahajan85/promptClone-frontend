@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { AppNavbar } from "@/components/app-navbar";
-import { type ApiListing, formatBytes, formatPrice, listingsApi } from "@/lib/api";
+import { type ApiListing, formatBytes, formatPrice, listingsApi, paymentsApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 type TabId = "skills.md" | "handler.js" | "config.json";
@@ -38,7 +38,18 @@ export function SkillDetailView({
   const [activeTab, setActiveTab] = useState<TabId>("skills.md");
   const [listing, setListing] = useState<ApiListing>(initialListing);
   const [accessChecked, setAccessChecked] = useState(false);
-  const { token, loading: authLoading } = useAuth();
+  const [buying, setBuying] = useState(false);
+  const [buyError, setBuyError] = useState("");
+  const confirmDialogRef = useRef<HTMLDialogElement>(null);
+  const { token, user, loading: authLoading } = useAuth();
+
+  const refreshListing = () => {
+    if (!token) return;
+    listingsApi
+      .get(initialListing._id, token)
+      .then(({ listing: full }) => setListing(full))
+      .catch(() => {/* keep current */});
+  };
 
   useEffect(() => {
     if (authLoading) return;
@@ -57,9 +68,39 @@ export function SkillDetailView({
       .finally(() => setAccessChecked(true));
   }, [token, authLoading, initialListing._id]);
 
+  const handleBuyNowClick = () => {
+    if (!token) {
+      window.location.href = "/auth/login";
+      return;
+    }
+    setBuyError("");
+    confirmDialogRef.current?.showModal();
+  };
+
+  const handleConfirmPurchase = async () => {
+    if (!token) return;
+    setBuying(true);
+    setBuyError("");
+    try {
+      await paymentsApi.buy(token, listing._id);
+      confirmDialogRef.current?.close();
+      refreshListing();
+    } catch (err) {
+      setBuyError(err instanceof Error ? err.message : "Purchase failed. Please try again.");
+    } finally {
+      setBuying(false);
+    }
+  };
+
+  const handleDownload = () => {
+    const url = listing.packageZipUrl ?? listing.fileUrl;
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   // API omits fileUrl for users without access (variant C).
   // Its presence in the response means seller, admin, or completed-purchase buyer.
   const hasAccess = accessChecked && !!listing.fileUrl;
+  const isSeller = user && listing.sellerId._id === user._id;
   const purchaseActionLabel = hasAccess ? "Download skill" : "Buy Now";
 
   const manifestFiles = listing.packageManifest?.files ?? [];
@@ -148,6 +189,50 @@ export default skill.pipeline;`}
 
   return (
     <div className="flex min-h-screen flex-col bg-white pb-28 text-[#0f1222]">
+      {/* Confirm purchase dialog */}
+      <dialog
+        ref={confirmDialogRef}
+        className="fixed inset-0 z-50 m-0 box-border flex min-h-dvh w-full max-w-none items-center justify-center border-0 bg-transparent p-4 shadow-none backdrop:bg-black/45"
+        aria-labelledby="confirm-purchase-title"
+        onCancel={(e) => { if (buying) e.preventDefault(); }}
+        onClose={() => setBuyError("")}
+      >
+        <div className="relative w-full max-w-md border border-[#e5e7eb] bg-white p-5 shadow-[0_20px_50px_rgba(15,18,34,0.18)] sm:p-6">
+          <p className="font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">[ CONFIRM PURCHASE ]</p>
+          <h2 id="confirm-purchase-title" className="mt-2 text-lg font-semibold tracking-tight text-[#0f1222]">
+            {listing.title}
+          </h2>
+          <p className="mt-3 text-sm leading-relaxed text-[#5c6178]">
+            You are about to purchase this skill for a one-time payment of{" "}
+            <span className="font-semibold text-[#0f1222]">{formatPrice(listing.price)}</span>.
+            A transaction record will be created immediately.
+          </p>
+          {buyError && (
+            <p className="mt-3 border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {buyError}
+            </p>
+          )}
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={buying}
+              onClick={() => { if (!buying) confirmDialogRef.current?.close(); }}
+              className="w-full border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] sm:w-auto"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={buying}
+              onClick={() => void handleConfirmPurchase()}
+              className="w-full border border-black bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1a1d2e] disabled:opacity-60 sm:w-auto"
+            >
+              {buying ? "Processing…" : `Confirm — ${formatPrice(listing.price)}`}
+            </button>
+          </div>
+        </div>
+      </dialog>
+
       <AppNavbar activeTab="explore" />
 
       <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-8 md:px-6">
@@ -228,7 +313,9 @@ export default skill.pipeline;`}
               aria-label={
                 hasAccess ? "Download skill" : `Buy Now for ${formatPrice(listing.price)}`
               }
-              className="mt-6 flex w-full items-center justify-center gap-2 border border-black bg-black py-3 text-xs font-semibold tracking-[0.15em] text-white hover:bg-[#1a1d2e]"
+              onClick={hasAccess ? handleDownload : (isSeller ? undefined : handleBuyNowClick)}
+              disabled={isSeller && !hasAccess}
+              className="mt-6 flex w-full items-center justify-center gap-2 border border-black bg-black py-3 text-xs font-semibold tracking-[0.15em] text-white hover:bg-[#1a1d2e] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {hasAccess ? (
                 <svg
@@ -513,11 +600,8 @@ export default skill.pipeline;`}
                       <button
                         type="button"
                         className="mt-1 w-full border border-black bg-black px-6 py-2.5 text-xs font-semibold tracking-[0.14em] text-white hover:bg-[#1a1d2e]"
-                        onClick={() => {
-                          const el = document.getElementById("skill-purchase-btn");
-                          el?.scrollIntoView({ behavior: "smooth", block: "center" });
-                          el?.focus();
-                        }}
+                        onClick={isSeller ? undefined : handleBuyNowClick}
+                        disabled={isSeller}
                       >
                         PURCHASE — {formatPrice(listing.price)}
                       </button>

@@ -254,9 +254,25 @@ export const usersApi = {
   },
 
   becomeSeller(token: string) {
-    return apiFetch<{ success: true; onboardingUrl: string }>(
+    return apiFetch<{ success: true; onboardingUrl: string | null }>(
       "/api/users/me/become-seller",
       { method: "POST" },
+      token,
+    );
+  },
+
+  getMyPurchases(token: string) {
+    return apiFetch<{ success: true; listings: ApiListing[] }>(
+      "/api/users/me/purchases",
+      {},
+      token,
+    );
+  },
+
+  getMyListings(token: string) {
+    return apiFetch<{ success: true; listings: ApiListing[] }>(
+      "/api/users/me/listings",
+      {},
       token,
     );
   },
@@ -264,7 +280,27 @@ export const usersApi = {
 
 // ─── Payments API ─────────────────────────────────────────────────────────────
 
+export type ApiTransaction = {
+  _id: string;
+  listingId: string;
+  buyerId: string;
+  sellerId: string;
+  amount: number;
+  platformFee: number;
+  sellerPayout: number;
+  status: "pending" | "completed" | "refunded";
+  createdAt: string;
+};
+
 export const paymentsApi = {
+  buy(token: string, listingId: string) {
+    return apiFetch<{ success: true; transaction: ApiTransaction }>(
+      "/api/payments/buy",
+      { method: "POST", body: JSON.stringify({ listingId }) },
+      token,
+    );
+  },
+
   createCheckout(token: string, listingId: string) {
     return apiFetch<{ success: true; checkoutUrl: string }>(
       "/api/payments/create-checkout",
@@ -278,7 +314,7 @@ export const paymentsApi = {
       success: true;
       totalEarnings: number;
       pendingPayouts: number;
-      completedTransactions: unknown[];
+      completedTransactions: ApiTransaction[];
       listingBreakdown: {
         listingId: string;
         title: string;
