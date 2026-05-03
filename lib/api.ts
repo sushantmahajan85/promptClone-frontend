@@ -32,6 +32,12 @@ export type PackageManifest = {
 
 export type ListingStatus = "draft" | "pending-review" | "active" | "suspended";
 
+export type DemoMediaItem = {
+  url: string;
+  resourceType: string;
+  name: string;
+};
+
 export type ApiListing = {
   _id: string;
   listingHashId: string;
@@ -42,12 +48,14 @@ export type ApiListing = {
   pricingModel: "one-time";
   llmCompatibility: string[];
   tags: string[];
+  categories?: string[];
   verified: boolean;
   fileUrl?: string;
   fileSizeBytes?: number;
   packageZipUrl?: string;
   packageManifest?: PackageManifest;
   coverImageUrl?: string;
+  demoMedia?: DemoMediaItem[];
   status: ListingStatus;
   averageRating?: number;
   reviewCount?: number;
@@ -226,10 +234,15 @@ export const listingsApi = {
     );
   },
 
-  upload(token: string, id: string, skillFile: File, coverImage?: File) {
+  upload(token: string, id: string, skillFile: File, coverImage?: File | null, demoMediaFiles?: File[]) {
     const form = new FormData();
     form.append("skillFile", skillFile);
     if (coverImage) form.append("coverImage", coverImage);
+    if (demoMediaFiles) {
+      for (const file of demoMediaFiles) {
+        form.append("demoMedia", file);
+      }
+    }
     return apiFetch<{ success: true; listing: ApiListing }>(
       `/api/listings/${id}/upload`,
       { method: "POST", body: form },

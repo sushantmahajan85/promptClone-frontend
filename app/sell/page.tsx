@@ -233,7 +233,7 @@ export function UploadSkillPage() {
       }
 
       if (fileToUpload) {
-        await listingsApi.upload(token, listing._id, fileToUpload, previewImageFile);
+        await listingsApi.upload(token, listing._id, fileToUpload, previewImageFile, demoMediaFiles);
       }
       await listingsApi.update(token, listing._id, { status: "pending-review" });
       setPublishedId(listing.listingHashId);

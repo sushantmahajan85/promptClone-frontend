@@ -1,15 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AppNavbar } from "@/components/app-navbar";
 import { type ApiListing, formatBytes, formatPrice, listingsApi, paymentsApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-
-type TabId = "skills.md" | "handler.js" | "config.json";
-
-const TABS: TabId[] = ["skills.md", "handler.js", "config.json"];
 
 function SellerAvatar({
   name,
@@ -32,10 +28,18 @@ function SellerAvatar({
   );
 }
 
+const TEXT_EXTENSIONS =
+  /\.(md|js|ts|tsx|jsx|json|py|txt|yaml|yml|sh|css|html|xml|toml|env|cfg|ini|rs|go|java|rb|php|swift|kt|c|cpp|h)$/i;
+
+const isTextFile = (path: string) => TEXT_EXTENSIONS.test(path);
+const isImageFile = (path: string) =>
+  /\.(png|jpe?g|webp|gif|svg|ico)$/i.test(path);
+
+const DEFAULT_TABS = ["skills.md", "handler.js", "config.json"];
+
 export function SkillDetailView({
   listing: initialListing,
 }: Readonly<{ listing: ApiListing }>) {
-  const [activeTab, setActiveTab] = useState<TabId>("skills.md");
   const [listing, setListing] = useState<ApiListing>(initialListing);
   const [accessChecked, setAccessChecked] = useState(false);
   const [buying, setBuying] = useState(false);
@@ -43,13 +47,18 @@ export function SkillDetailView({
   const confirmDialogRef = useRef<HTMLDialogElement>(null);
   const { token, user, loading: authLoading } = useAuth();
 
-  const refreshListing = () => {
+  // Dynamic file viewer state
+  const [activeFile, setActiveFile] = useState<string>("skills.md");
+  const [fileContents, setFileContents] = useState<Record<string, string>>({});
+  const [fetchingFile, setFetchingFile] = useState<string | null>(null);
+
+  const refreshListing = useCallback(() => {
     if (!token) return;
     listingsApi
       .get(initialListing._id, token)
       .then(({ listing: full }) => setListing(full))
       .catch(() => {/* keep current */});
-  };
+  }, [token, initialListing._id]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -62,11 +71,33 @@ export function SkillDetailView({
       .then(({ listing: full }) => {
         setListing(full);
       })
-      .catch(() => {
-        /* keep initial listing */
-      })
+      .catch(() => {/* keep initial listing */})
       .finally(() => setAccessChecked(true));
   }, [token, authLoading, initialListing._id]);
+
+  const fetchFileContent = useCallback(async (path: string, url: string) => {
+    if (fileContents[path] !== undefined) return;
+    setFetchingFile(path);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      setFileContents((prev) => ({ ...prev, [path]: text }));
+    } catch {
+      setFileContents((prev) => ({ ...prev, [path]: `// Could not load ${path}` }));
+    } finally {
+      setFetchingFile(null);
+    }
+  }, [fileContents]);
+
+  const handleFileSelect = useCallback((path: string) => {
+    setActiveFile(path);
+    const manifestFiles = listing.packageManifest?.files ?? [];
+    const file = manifestFiles.find((f) => f.path === path);
+    if (file && isTextFile(path)) {
+      void fetchFileContent(path, file.url);
+    }
+  }, [listing.packageManifest?.files, fetchFileContent]);
 
   const handleBuyNowClick = () => {
     if (!token) {
@@ -97,29 +128,44 @@ export function SkillDetailView({
     if (url) window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  // API omits fileUrl for users without access (variant C).
-  // Its presence in the response means seller, admin, or completed-purchase buyer.
+  // API omits fileUrl for users without access.
   const hasAccess = accessChecked && !!listing.fileUrl;
-  const isSeller = user && listing.sellerId._id === user._id;
-  const purchaseActionLabel = hasAccess ? "Download skill" : "Buy Now";
+  const isSeller = !!(user && listing.sellerId._id === user._id);
 
+  // ─── Media derivations ────────────────────────────────────────────────────
   const manifestFiles = listing.packageManifest?.files ?? [];
-  const demoImages = manifestFiles.filter(
-    (file) =>
-      file.resourceType.startsWith("image/") ||
-      /\.(png|jpe?g|webp|gif|svg)$/i.test(file.path),
+  const demoMedia = listing.demoMedia ?? [];
+
+  // Hero video: prefer explicitly uploaded demo video, then manifest video
+  const demoVideos = demoMedia.filter((m) =>
+    m.resourceType === "video" || /\.(mp4|webm|mov|m4v)$/i.test(m.name),
   );
-  const demoVideos = manifestFiles.filter(
-    (file) =>
-      file.resourceType.startsWith("video/") ||
-      /\.(mp4|webm|mov|m4v)$/i.test(file.path),
+  const manifestVideos = manifestFiles.filter((f) =>
+    f.resourceType === "video" || /\.(mp4|webm|mov|m4v)$/i.test(f.path),
   );
-  const primaryHeroVideo = demoVideos[0] ?? null;
+  const primaryHeroVideo = demoVideos[0] ?? manifestVideos[0] ?? null;
+
+  const demoImages = demoMedia.filter((m) =>
+    m.resourceType === "image" || /\.(png|jpe?g|webp|gif|svg)$/i.test(m.name),
+  );
+  const manifestImages = manifestFiles.filter((f) =>
+    f.resourceType === "image" || /\.(png|jpe?g|webp|gif|svg)$/i.test(f.path),
+  );
+
+  // ─── Dynamic file viewer ──────────────────────────────────────────────────
+  // Build tab list from manifest text files (up to 5), else use defaults
+  const manifestTextFiles = manifestFiles.filter((f) => isTextFile(f.path));
+  const displayTabs =
+    manifestTextFiles.length > 0
+      ? manifestTextFiles.slice(0, 5).map((f) => f.path)
+      : DEFAULT_TABS;
+
   const fileTree =
     manifestFiles.length > 0
       ? manifestFiles.map((f) => f.path)
-      : ["skills.md", "handler.js", "config.json"];
+      : DEFAULT_TABS;
 
+  // Config JSON is always derived from listing metadata
   const configJson = JSON.stringify(
     {
       name: listing.title,
@@ -127,6 +173,7 @@ export function SkillDetailView({
       pricingModel: listing.pricingModel,
       price: listing.price,
       tags: listing.tags,
+      categories: listing.categories,
       llmCompatibility: listing.llmCompatibility,
       status: listing.status,
     },
@@ -134,7 +181,7 @@ export function SkillDetailView({
     2,
   );
 
-  const handlerJs = `import { defineHandler } from "@skillkart/runtime";
+  const handlerJsTemplate = `import { defineHandler } from "@skillkart/runtime";
 
 export default defineHandler({
   name: "${listing.title}",
@@ -144,91 +191,77 @@ export default defineHandler({
   },
 });`;
 
-  const tabBody: Record<TabId, ReactNode> = {
-    "skills.md": (
-      <div className="space-y-4 text-sm leading-7 text-[#3d4459]">
-        {listing.description ? (
-          <pre className="whitespace-pre-wrap font-sans text-sm leading-7">
-            {listing.description}
-          </pre>
-        ) : (
-          <>
-            <h2 className="text-lg font-semibold text-[#0f1222]">
-              # Skill Documentation
-            </h2>
-            <p>
-              This skill exposes a stable{" "}
-              <code className="font-mono text-xs">SkillKart.Skill</code> contract
-              for <strong>{listing.title}</strong>.
-            </p>
-            <div className="rounded-lg border border-[#d6e4ff] bg-[#f0f6ff] p-4 font-mono text-xs leading-6 text-[#1e3a5f]">
-              <pre className="whitespace-pre-wrap">
-                {`const skill = new SkillKart.Skill({
-  id: "${listing.listingHashId}",
-  runtime: "edge-v2",
-});
-await skill.warm();
-export default skill.pipeline;`}
-              </pre>
-            </div>
-          </>
-        )}
-      </div>
-    ),
-    "handler.js": (
-      <div className="font-mono text-xs leading-6 text-[#1e3a5f]">
-        <pre className="whitespace-pre-wrap">{handlerJs}</pre>
-      </div>
-    ),
-    "config.json": (
-      <div className="font-mono text-xs leading-6 text-[#1e3a5f]">
-        <pre className="whitespace-pre-wrap">{configJson}</pre>
-      </div>
-    ),
-  };
+  // Resolve content for the active file
+  const activeManifestFile = manifestFiles.find((f) => f.path === activeFile);
+
+  let activeContent: string | null = null;
+  if (fileContents[activeFile] !== undefined) {
+    activeContent = fileContents[activeFile];
+  } else if (manifestTextFiles.length === 0) {
+    // Fallback static content for default tabs
+    if (activeFile === "skills.md") {
+      activeContent = listing.description || null;
+    } else if (activeFile === "handler.js") {
+      activeContent = handlerJsTemplate;
+    } else if (activeFile === "config.json") {
+      activeContent = configJson;
+    }
+  } else if (activeFile === "config.json" && !activeManifestFile) {
+    activeContent = configJson;
+  }
+
+  const hasNoMedia =
+    !listing.coverImageUrl &&
+    demoImages.length === 0 &&
+    (demoVideos.length === 0 || (demoVideos.length === 1 && !!primaryHeroVideo)) &&
+    manifestImages.length === 0;
 
   return (
     <div className="flex min-h-screen flex-col bg-white pb-28 text-[#0f1222]">
-      {/* Confirm purchase dialog */}
+      {/* Confirm purchase dialog — NOTE: no display/flex classes on <dialog> itself
+          to avoid Tailwind overriding the browser's native display:none when closed */}
       <dialog
         ref={confirmDialogRef}
-        className="fixed inset-0 z-50 m-0 box-border flex min-h-dvh w-full max-w-none items-center justify-center border-0 bg-transparent p-4 shadow-none backdrop:bg-black/45"
+        className="z-50 border-0 bg-transparent p-0 shadow-none backdrop:bg-black/45"
+        style={{ maxWidth: "none", width: "100%", margin: 0, position: "fixed", inset: 0, minHeight: "100dvh" }}
         aria-labelledby="confirm-purchase-title"
         onCancel={(e) => { if (buying) e.preventDefault(); }}
         onClose={() => setBuyError("")}
       >
-        <div className="relative w-full max-w-md border border-[#e5e7eb] bg-white p-5 shadow-[0_20px_50px_rgba(15,18,34,0.18)] sm:p-6">
-          <p className="font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">[ CONFIRM PURCHASE ]</p>
-          <h2 id="confirm-purchase-title" className="mt-2 text-lg font-semibold tracking-tight text-[#0f1222]">
-            {listing.title}
-          </h2>
-          <p className="mt-3 text-sm leading-relaxed text-[#5c6178]">
-            You are about to purchase this skill for a one-time payment of{" "}
-            <span className="font-semibold text-[#0f1222]">{formatPrice(listing.price)}</span>.
-            A transaction record will be created immediately.
-          </p>
-          {buyError && (
-            <p className="mt-3 border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-              {buyError}
+        <div className="flex min-h-[100dvh] w-full items-center justify-center p-4">
+          <div className="relative w-full max-w-md border border-[#e5e7eb] bg-white p-5 shadow-[0_20px_50px_rgba(15,18,34,0.18)] sm:p-6">
+            <p className="font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">[ CONFIRM PURCHASE ]</p>
+            <h2 id="confirm-purchase-title" className="mt-2 text-lg font-semibold tracking-tight text-[#0f1222]">
+              {listing.title}
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-[#5c6178]">
+              You are about to purchase this skill for a one-time payment of{" "}
+              <span className="font-semibold text-[#0f1222]">{formatPrice(listing.price)}</span>.
+              A transaction record will be created immediately.
             </p>
-          )}
-          <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              disabled={buying}
-              onClick={() => { if (!buying) confirmDialogRef.current?.close(); }}
-              className="w-full border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] sm:w-auto"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={buying}
-              onClick={() => void handleConfirmPurchase()}
-              className="w-full border border-black bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1a1d2e] disabled:opacity-60 sm:w-auto"
-            >
-              {buying ? "Processing…" : `Confirm — ${formatPrice(listing.price)}`}
-            </button>
+            {buyError && (
+              <p className="mt-3 border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {buyError}
+              </p>
+            )}
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={buying}
+                onClick={() => { if (!buying) confirmDialogRef.current?.close(); }}
+                className="w-full border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] sm:w-auto"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={buying}
+                onClick={() => void handleConfirmPurchase()}
+                className="w-full border border-black bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1a1d2e] disabled:opacity-60 sm:w-auto"
+              >
+                {buying ? "Processing…" : `Confirm — ${formatPrice(listing.price)}`}
+              </button>
+            </div>
           </div>
         </div>
       </dialog>
@@ -241,15 +274,10 @@ export default skill.pipeline;`}
           className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] leading-relaxed tracking-[0.12em] text-[#9aa0b5] sm:tracking-[0.14em]"
           aria-label="Breadcrumb"
         >
-          <Link
-            href="/explore"
-            className="text-[#5c6178] transition-colors hover:text-[#0f1222]"
-          >
+          <Link href="/explore" className="text-[#5c6178] transition-colors hover:text-[#0f1222]">
             Explore
           </Link>
-          <span className="text-[#c5c9d6]" aria-hidden>
-            &gt;
-          </span>
+          <span className="text-[#c5c9d6]" aria-hidden>&gt;</span>
           <span
             aria-current="page"
             className="max-w-[min(100%,42rem)] truncate text-[#5c6178]"
@@ -259,6 +287,7 @@ export default skill.pipeline;`}
           </span>
         </nav>
 
+        {/* Hero video — first uploaded demo video (or first manifest video) */}
         {primaryHeroVideo ? (
           <section className="mt-6 overflow-hidden rounded-xl border border-[#1e293b] bg-black shadow-[0_20px_50px_rgba(15,18,34,0.18)]">
             <div className="relative aspect-video max-h-[min(72vh,820px)] w-full bg-[#0b0f1a]">
@@ -273,7 +302,11 @@ export default skill.pipeline;`}
               >
                 <source
                   src={primaryHeroVideo.url}
-                  type={primaryHeroVideo.resourceType || "video/mp4"}
+                  type={
+                    primaryHeroVideo.resourceType === "video"
+                      ? "video/mp4"
+                      : primaryHeroVideo.resourceType || "video/mp4"
+                  }
                 />
                 <track kind="captions" srcLang="en" label="English captions" />
               </video>
@@ -297,7 +330,7 @@ export default skill.pipeline;`}
           </div>
           <div className="w-full shrink-0 border border-[#eceef5] bg-[#fafbff] p-5 sm:p-6 lg:min-w-[240px] lg:w-auto">
             <p className="text-[10px] font-semibold tracking-[0.2em] text-[#9aa0b5]">
-              {hasAccess ? "DOWNLOAD" : "BUY"}
+              {hasAccess ? "DOWNLOAD" : isSeller ? "YOUR SKILL" : "BUY"}
             </p>
             <p className="mt-1 text-2xl font-semibold tracking-tight">
               {formatPrice(listing.price)}
@@ -305,54 +338,33 @@ export default skill.pipeline;`}
             <p className="mt-2 text-sm leading-6 text-[#5c6178]">
               {hasAccess
                 ? "You have access. Download the skill folder and drop it into your agent or workflow."
+                : isSeller
+                ? "This is your listing. Buyers can download the full skill package after purchase."
                 : "One-time purchase. After checkout you can download the full skill package."}
             </p>
             <button
               id="skill-purchase-btn"
               type="button"
-              aria-label={
-                hasAccess ? "Download skill" : `Buy Now for ${formatPrice(listing.price)}`
-              }
-              onClick={hasAccess ? handleDownload : (isSeller ? undefined : handleBuyNowClick)}
+              aria-label={hasAccess ? "Download skill" : `Buy Now for ${formatPrice(listing.price)}`}
+              onClick={hasAccess ? handleDownload : isSeller ? undefined : handleBuyNowClick}
               disabled={isSeller && !hasAccess}
               className="mt-6 flex w-full items-center justify-center gap-2 border border-black bg-black py-3 text-xs font-semibold tracking-[0.15em] text-white hover:bg-[#1a1d2e] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {hasAccess ? (
-                <svg
-                  className="h-4 w-4 shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                  />
+                <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
               ) : (
-                <svg
-                  className="h-4 w-4 shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M16 11V7a4 4 0 00-8 0v4M5 9h14l-1 12H6L5 9z"
-                  />
+                <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l-1 12H6L5 9z" />
                 </svg>
               )}
-              {purchaseActionLabel}
+              {hasAccess ? "Download skill" : isSeller ? "Your listing" : "Buy Now"}
             </button>
           </div>
         </div>
 
+        {/* Demo Walkthrough — uses demoMedia uploaded by seller + cover image */}
         <section className="mt-8 border border-[#eceef5] bg-[#fafbff] p-4 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -366,11 +378,13 @@ export default skill.pipeline;`}
           </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {/* Cover image */}
             {listing.coverImageUrl && (
               <article className="overflow-hidden border border-[#e5e7eb] bg-white">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={listing.coverImageUrl}
-                  alt={`${listing.title} cover demo`}
+                  alt={`${listing.title} cover`}
                   className="h-52 w-full object-cover"
                 />
                 <p className="border-t border-[#e5e7eb] px-3 py-2 text-xs text-[#6b7280]">
@@ -379,45 +393,55 @@ export default skill.pipeline;`}
               </article>
             )}
 
-            {(demoVideos.length > 1 ? demoVideos.slice(1) : []).map((video) => (
-              <article
-                key={video.path}
-                className="overflow-hidden border border-[#e5e7eb] bg-white"
-              >
-                <video controls preload="metadata" className="h-52 w-full object-cover">
-                  <source src={video.url} type={video.resourceType || "video/mp4"} />
+            {/* Remaining demo videos (first was used as hero) */}
+            {demoVideos.slice(1).map((media) => (
+              <article key={media.url} className="overflow-hidden border border-[#e5e7eb] bg-white">
+                <video controls preload="metadata" className="h-52 w-full bg-black object-contain">
+                  <source src={media.url} type="video/mp4" />
                   <track kind="captions" srcLang="en" label="English captions" />
                   Your browser does not support this video tag.
                 </video>
                 <p className="border-t border-[#e5e7eb] px-3 py-2 text-xs text-[#6b7280]">
-                  {video.path}
+                  {media.name || "Demo video"}
                 </p>
               </article>
             ))}
 
-            {demoImages.map((image) => (
-              <article
-                key={image.path}
-                className="overflow-hidden border border-[#e5e7eb] bg-white"
-              >
+            {/* Demo images uploaded by seller */}
+            {demoImages.map((media) => (
+              <article key={media.url} className="overflow-hidden border border-[#e5e7eb] bg-white">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={image.url}
-                  alt={`${listing.title} demo ${image.path}`}
+                  src={media.url}
+                  alt={media.name || `${listing.title} demo`}
                   className="h-52 w-full object-cover"
                 />
                 <p className="border-t border-[#e5e7eb] px-3 py-2 text-xs text-[#6b7280]">
-                  {image.path}
+                  {media.name || "Demo screenshot"}
                 </p>
               </article>
             ))}
+
+            {/* Fallback: images from zip manifest */}
+            {demoImages.length === 0 &&
+              manifestImages.map((file) => (
+                <article key={file.path} className="overflow-hidden border border-[#e5e7eb] bg-white">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={file.url}
+                    alt={`${listing.title} demo ${file.path}`}
+                    className="h-52 w-full object-cover"
+                  />
+                  <p className="border-t border-[#e5e7eb] px-3 py-2 text-xs text-[#6b7280]">
+                    {file.path}
+                  </p>
+                </article>
+              ))}
           </div>
 
-          {!listing.coverImageUrl &&
-            demoImages.length === 0 &&
-            demoVideos.length === 0 && (
+          {hasNoMedia && (
             <p className="mt-4 border border-dashed border-[#d1d5db] bg-white px-4 py-4 text-sm text-[#6b7280]">
-              Demo media will appear here once the seller uploads setup screenshots
-              or walkthrough videos.
+              Demo media will appear here once the seller uploads setup screenshots or walkthrough videos.
             </p>
           )}
         </section>
@@ -435,10 +459,16 @@ export default skill.pipeline;`}
                   <dt className="text-[#9aa0b5]">Listing reference</dt>
                   <dd className="break-all font-mono text-[#374151]">{listing.listingHashId}</dd>
                 </div>
-                {listing.fileSizeBytes == null ? null : (
+                {listing.fileSizeBytes ? (
                   <div>
                     <dt className="text-[#9aa0b5]">Download size</dt>
                     <dd className="text-[#374151]">{formatBytes(listing.fileSizeBytes)}</dd>
+                  </div>
+                ) : null}
+                {(listing.categories ?? []).length > 0 && (
+                  <div>
+                    <dt className="text-[#9aa0b5]">Categories</dt>
+                    <dd className="text-[#374151]">{listing.categories?.join(", ")}</dd>
                   </div>
                 )}
               </dl>
@@ -450,8 +480,7 @@ export default skill.pipeline;`}
                   [ SUPPORTED AGENTS ]
                 </p>
                 <p className="mt-2 text-xs leading-relaxed text-[#5c6178]">
-                  This skill is validated for use with the following agent
-                  platforms.
+                  This skill is validated for use with the following agent platforms.
                 </p>
                 <ul className="mt-4 flex flex-wrap gap-2">
                   {listing.llmCompatibility.map((agent) => (
@@ -470,10 +499,7 @@ export default skill.pipeline;`}
                 [ ORIGIN ]
               </p>
               <div className="mt-4 flex items-center gap-3">
-                <SellerAvatar
-                  name={listing.sellerId.name}
-                  avatarUrl={listing.sellerId.avatarUrl}
-                />
+                <SellerAvatar name={listing.sellerId.name} avatarUrl={listing.sellerId.avatarUrl} />
                 <div>
                   <p className="text-sm font-medium">{listing.sellerId.name}</p>
                   <p className="font-mono text-xs text-[#8b90a3]">
@@ -482,17 +508,13 @@ export default skill.pipeline;`}
                 </div>
               </div>
               {listing.sellerId.bio && (
-                <p className="mt-3 text-xs leading-relaxed text-[#5c6178]">
-                  {listing.sellerId.bio}
-                </p>
+                <p className="mt-3 text-xs leading-relaxed text-[#5c6178]">{listing.sellerId.bio}</p>
               )}
             </div>
 
             {listing.tags.length > 0 && (
               <div className="border border-[#eceef5] p-4">
-                <p className="font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">
-                  [ TAGS ]
-                </p>
+                <p className="font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">[ TAGS ]</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {listing.tags.map((t) => (
                     <span
@@ -507,21 +529,22 @@ export default skill.pipeline;`}
             )}
           </aside>
 
-          {/* Code viewer */}
+          {/* Dynamic code viewer */}
           <div className="min-w-0 flex-1 border border-[#eceef5] bg-[#fafbff]">
+            {/* Tabs — dynamic from manifest text files */}
             <div className="-mx-px flex flex-nowrap gap-0 overflow-x-auto border-b border-[#eceef5] bg-white [-webkit-overflow-scrolling:touch]">
-              {TABS.map((tab) => (
+              {displayTabs.map((tab) => (
                 <button
                   key={tab}
                   type="button"
-                  onClick={() => setActiveTab(tab)}
+                  onClick={() => handleFileSelect(tab)}
                   className={`shrink-0 border-b-2 px-3 py-3 font-mono text-[11px] sm:px-4 sm:text-xs ${
-                    activeTab === tab
+                    activeFile === tab
                       ? "-mb-px border-black font-medium text-[#0f1222]"
                       : "border-transparent text-[#8b90a3] hover:text-[#5c6178]"
                   }`}
                 >
-                  {tab}
+                  {tab.split("/").pop()}
                 </button>
               ))}
             </div>
@@ -529,67 +552,89 @@ export default skill.pipeline;`}
             <div className="flex flex-col md:flex-row">
               {/* File tree */}
               <div className="w-full shrink-0 border-b border-[#eceef5] bg-white p-4 font-mono text-xs text-[#5c6178] md:w-52 md:border-b-0 md:border-r">
-                <p className="mb-3 text-[10px] tracking-wide text-[#b4b8c9]">
-                  src /
-                </p>
+                <p className="mb-3 text-[10px] tracking-wide text-[#b4b8c9]">src /</p>
                 <ul className="space-y-1">
                   {fileTree.map((file) => (
                     <li key={file}>
                       <button
                         type="button"
-                        onClick={() => {
-                          const tab = TABS.find((t) => file.endsWith(t));
-                          if (tab) setActiveTab(tab);
-                        }}
+                        onClick={() => handleFileSelect(file)}
                         className={`w-full truncate rounded px-2 py-1 text-left hover:bg-[#f5f6fa] ${
-                          activeTab === file || file.endsWith(activeTab)
+                          activeFile === file
                             ? "bg-[#eef2ff] text-[#1d4ed8]"
                             : ""
                         }`}
                       >
-                        {file}
+                        {file.split("/").pop()}
                       </button>
                     </li>
                   ))}
                 </ul>
-                {listing.fileSizeBytes && (
+                {listing.fileSizeBytes ? (
                   <p className="mt-4 text-[10px] text-[#b4b8c9]">
                     {formatBytes(listing.fileSizeBytes)} total
                   </p>
-                )}
+                ) : null}
               </div>
 
-              {/* Tab content */}
+              {/* File content */}
               <div className="relative min-h-[280px] flex-1 bg-white sm:min-h-[320px]">
                 <div
                   className={`h-full p-4 sm:p-6 ${hasAccess ? "" : "pointer-events-none select-none blur-sm"}`}
                   aria-hidden={!hasAccess}
                 >
-                  {tabBody[activeTab]}
+                  {/* Loading spinner for remote fetch */}
+                  {fetchingFile === activeFile ? (
+                    <div className="flex h-full min-h-[200px] items-center justify-center">
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#e5e7eb] border-t-[#0f1222]" />
+                    </div>
+                  ) : activeManifestFile && isImageFile(activeFile) ? (
+                    // Image file preview
+                    <div className="flex flex-col items-start gap-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={activeManifestFile.url}
+                        alt={activeFile}
+                        className="max-h-[400px] max-w-full border border-[#e5e7eb] object-contain"
+                      />
+                      <p className="text-xs text-[#9aa0b5]">{activeFile}</p>
+                    </div>
+                  ) : activeContent !== null ? (
+                    // Text / code content
+                    <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-[#1e3a5f]">
+                      {activeContent}
+                    </pre>
+                  ) : activeManifestFile ? (
+                    // Unsupported file type
+                    <p className="text-xs text-[#9aa0b5]">
+                      Preview not available for this file type.{" "}
+                      <a
+                        href={activeManifestFile.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline hover:text-[#0f1222]"
+                      >
+                        Open file
+                      </a>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-[#9aa0b5]">Select a file to preview its contents.</p>
+                  )}
                 </div>
 
+                {/* Access check loading */}
                 {!hasAccess && !accessChecked && (
                   <div className="absolute inset-0 flex items-center justify-center bg-white/70">
                     <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#e5e7eb] border-t-[#0f1222]" />
                   </div>
                 )}
 
-                {!hasAccess && accessChecked && (
+                {/* Locked overlay — only for non-sellers who haven't purchased */}
+                {!hasAccess && accessChecked && !isSeller && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-white/60 backdrop-blur-[2px]">
                     <div className="flex flex-col items-center gap-3 rounded-xl border border-[#e5e7eb] bg-white px-8 py-7 shadow-[0_8px_32px_rgba(15,18,34,0.10)]">
-                      <svg
-                        className="h-10 w-10 text-[#0f1222]"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                        aria-hidden
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.5}
-                          d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                        />
+                      <svg className="h-10 w-10 text-[#0f1222]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                       </svg>
                       <p className="font-mono text-[11px] font-semibold tracking-[0.18em] text-[#0f1222]">
                         CONTENT LOCKED
@@ -600,12 +645,23 @@ export default skill.pipeline;`}
                       <button
                         type="button"
                         className="mt-1 w-full border border-black bg-black px-6 py-2.5 text-xs font-semibold tracking-[0.14em] text-white hover:bg-[#1a1d2e]"
-                        onClick={isSeller ? undefined : handleBuyNowClick}
-                        disabled={isSeller}
+                        onClick={handleBuyNowClick}
                       >
                         PURCHASE — {formatPrice(listing.price)}
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {/* Seller: no file uploaded yet */}
+                {!hasAccess && accessChecked && isSeller && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/80">
+                    <p className="font-mono text-[11px] tracking-[0.14em] text-[#9aa0b5]">
+                      NO FILE UPLOADED
+                    </p>
+                    <p className="max-w-[220px] text-center text-xs text-[#6b7280]">
+                      Upload a skill zip on the sell page to populate the file viewer.
+                    </p>
                   </div>
                 )}
               </div>
@@ -618,13 +674,9 @@ export default skill.pipeline;`}
       <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#1e2a4a] bg-[#0f172a] px-4 py-3 text-white shadow-[0_-8px_30px_rgba(15,23,42,0.35)] md:px-6">
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-center gap-x-6 gap-y-2 font-mono text-[10px] tracking-[0.1em] text-[#94a3b8] sm:justify-start sm:gap-x-8 sm:tracking-[0.12em]">
           <span>PRICE: {formatPrice(listing.price)}</span>
-          <span>
-            REVIEWS:{" "}
-            {listing.reviewCount ?? "—"}
-          </span>
-          {listing.verified && (
-            <span className="text-[#22c55e]">VERIFIED: OK</span>
-          )}
+          <span>REVIEWS: {listing.reviewCount ?? "—"}</span>
+          {listing.purchaseCount ? <span>SALES: {listing.purchaseCount}</span> : null}
+          {listing.verified && <span className="text-[#22c55e]">VERIFIED: OK</span>}
         </div>
       </div>
 
