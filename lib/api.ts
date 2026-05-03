@@ -295,13 +295,25 @@ export const usersApi = {
 
 export type ApiTransaction = {
   _id: string;
-  listingId: string;
-  buyerId: string;
+  type: "purchase" | "withdrawal";
+  listingId?: string;
+  buyerId?: string;
   sellerId: string;
   amount: number;
-  platformFee: number;
-  sellerPayout: number;
-  status: "pending" | "completed" | "refunded";
+  platformFee?: number;
+  sellerPayout?: number;
+  status: "pending" | "completed" | "refunded" | "failed";
+  createdAt: string;
+};
+
+export type ApiWithdrawal = {
+  _id: string;
+  type: "withdrawal";
+  sellerId: string;
+  /** Amount in cents */
+  amount: number;
+  status: "pending" | "completed" | "failed";
+  bankDetails?: Record<string, unknown>;
   createdAt: string;
 };
 
@@ -334,6 +346,7 @@ export const paymentsApi = {
         totalSales: number;
         totalEarnings: number;
       }[];
+      withdrawalHistory: ApiWithdrawal[];
     }>("/api/payments/seller/dashboard", {}, token);
   },
 

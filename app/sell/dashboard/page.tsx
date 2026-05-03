@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNavbar } from "@/components/app-navbar";
-import { formatPrice, paymentsApi, type ApiTransaction } from "@/lib/api";
+import { formatPrice, paymentsApi, type ApiTransaction, type ApiWithdrawal } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 type SellerDashboardPayload = {
@@ -17,6 +17,7 @@ type SellerDashboardPayload = {
     totalSales: number;
     totalEarnings: number;
   }[];
+  withdrawalHistory: ApiWithdrawal[];
 };
 
 type SellerPaymentDetails = {
@@ -160,6 +161,7 @@ const emptyDashboard: SellerDashboardPayload = {
   pendingPayouts: 0,
   completedTransactions: [],
   listingBreakdown: [],
+  withdrawalHistory: [],
 };
 
 export default function SellerDashboardPage() {
@@ -196,6 +198,7 @@ export default function SellerDashboardPage() {
             pendingPayouts: res.pendingPayouts,
             completedTransactions: res.completedTransactions,
             listingBreakdown: res.listingBreakdown,
+            withdrawalHistory: res.withdrawalHistory ?? [],
           });
         }
       })
@@ -259,15 +262,19 @@ export default function SellerDashboardPage() {
 
     setWithdrawSubmitting(true);
     try {
-      await paymentsApi.withdraw(
+      const { withdrawal } = await paymentsApi.withdraw(
         token,
         cents,
         paymentDetails as unknown as Record<string, unknown>,
       );
-      // Optimistically reduce pending balance and close dialog
+      // Optimistically update balance and prepend to history
       setData((prev) => ({
         ...prev,
         pendingPayouts: Math.max(0, prev.pendingPayouts - cents),
+        withdrawalHistory: [
+          { ...withdrawal, type: "withdrawal" as const, bankDetails: paymentDetails as unknown as Record<string, unknown> },
+          ...prev.withdrawalHistory,
+        ],
       }));
       withdrawDialogRef.current?.close();
     } catch (err) {
@@ -511,6 +518,77 @@ export default function SellerDashboardPage() {
               )}
             </section>
           </>
+        )}
+
+        {/* Withdrawal history — always visible once data loads */}
+        {!dashboardLoading && (
+          <section className="mt-8 border border-[#e5e7eb] bg-white">
+            <div className="flex items-center justify-between border-b border-[#e5e7eb] px-4 py-3">
+              <h2 className="text-sm font-semibold tracking-wide text-[#0f1222]">
+                Withdrawal History
+              </h2>
+              <span className="font-mono text-[10px] tracking-[0.14em] text-[#9aa0b5]">
+                [ WITHDRAWALS ]
+              </span>
+            </div>
+
+            {data.withdrawalHistory.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-[#6b7280]">
+                No withdrawals yet. Once your pending balance reaches $30, you can request a payout.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-[#e5e7eb] text-sm">
+                  <thead className="bg-[#fafafa] text-left font-mono text-[11px] uppercase tracking-wide text-[#6b7280]">
+                    <tr>
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3">Amount</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Bank / Account</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#f0f2f8]">
+                    {data.withdrawalHistory.map((w) => {
+                      const bd = (w.bankDetails ?? {}) as Record<string, string>;
+                      const bankSummary = [bd.bankName, bd.accountNumber ? `····${bd.accountNumber.slice(-4)}` : null]
+                        .filter(Boolean)
+                        .join(" · ") || "—";
+                      return (
+                        <tr key={w._id}>
+                          <td className="px-4 py-3 text-[#5c6178]">
+                            {new Date(w.createdAt).toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-[#0f1222]">
+                            {formatPrice(w.amount)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-block rounded px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide ${
+                                w.status === "completed"
+                                  ? "bg-green-50 text-green-700"
+                                  : w.status === "failed"
+                                    ? "bg-red-50 text-red-700"
+                                    : "bg-amber-50 text-amber-700"
+                              }`}
+                            >
+                              {w.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-[#5c6178]">
+                            {bankSummary}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         )}
 
             <section className="mt-8 border border-[#e5e7eb] bg-white">
