@@ -11,9 +11,10 @@ type AppNavbarProps = Readonly<{
 }>;
 
 function tabClasses(isActive: boolean) {
+  const base = "border-b-2 pb-0.5";
   return isActive
-    ? "border-b-2 border-black pb-0.5 font-medium text-black"
-    : "hover:text-[#0f1222]";
+    ? `${base} border-black font-medium text-black`
+    : `${base} border-transparent hover:text-[#0f1222]`;
 }
 
 export function AppNavbar({
@@ -30,15 +31,12 @@ export function AppNavbar({
           <Link href="/explore" className={tabClasses(activeTab === "explore")}>
             Explore
           </Link>
-          <Link href="/sell/upload" className={tabClasses(activeTab === "sell")}>
+          <Link href="/sell/dashboard" className={tabClasses(activeTab === "sell")}>
             Sell
           </Link>
           <Link href="/my-skills" className={tabClasses(activeTab === "my-skills")}>
             My skills set
           </Link>
-          <button type="button" className="bg-transparent p-0 hover:text-[#0f1222]">
-            Docs
-          </button>
         </nav>
         <div className="ml-auto shrink-0">
           <NavAuth />

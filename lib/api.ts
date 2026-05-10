@@ -6,7 +6,7 @@ export type ApiUser = {
   _id: string;
   email: string;
   name: string;
-  role: "buyer" | "seller" | "admin";
+  role: "buyer" | "seller" | "both" | "admin";
   sellerStatus?: "none" | "pending" | "active";
   avatarUrl?: string;
   bio?: string;
@@ -86,6 +86,19 @@ export type ListingsPage = {
 export type AuthPayload = {
   token: string;
   user: ApiUser;
+};
+
+export type SellerInviteRequestStatus = "pending" | "approved" | "rejected";
+
+export type SellerInviteRequest = {
+  _id: string;
+  userId?: string | ApiUser;
+  skillType: string;
+  skillSummary: string;
+  status: SellerInviteRequestStatus;
+  adminNotes: string;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
 };
 
 export type ListingsSortBy =
@@ -266,10 +279,18 @@ export const usersApi = {
     );
   },
 
-  becomeSeller(token: string) {
-    return apiFetch<{ success: true; onboardingUrl: string | null }>(
+  becomeSeller(token: string, body: { skillType: string; skillSummary: string }) {
+    return apiFetch<{ success: true; request: SellerInviteRequest }>(
       "/api/users/me/become-seller",
-      { method: "POST" },
+      { method: "POST", body: JSON.stringify(body) },
+      token,
+    );
+  },
+
+  getMySellerInviteRequest(token: string) {
+    return apiFetch<{ success: true; request: SellerInviteRequest }>(
+      "/api/users/me/seller-invite-request",
+      {},
       token,
     );
   },
@@ -318,18 +339,31 @@ export type ApiWithdrawal = {
 };
 
 export const paymentsApi = {
-  buy(token: string, listingId: string) {
-    return apiFetch<{ success: true; transaction: ApiTransaction }>(
-      "/api/payments/buy",
+  createCheckout(token: string, listingId: string) {
+    return apiFetch<{
+      success: true;
+      order_id: string;
+      amount: number;
+      currency: string;
+      key_id: string;
+    }>(
+      "/api/payments/create-checkout",
       { method: "POST", body: JSON.stringify({ listingId }) },
       token,
     );
   },
 
-  createCheckout(token: string, listingId: string) {
-    return apiFetch<{ success: true; checkoutUrl: string }>(
-      "/api/payments/create-checkout",
-      { method: "POST", body: JSON.stringify({ listingId }) },
+  verifyPayment(
+    token: string,
+    body: {
+      razorpay_payment_id: string;
+      razorpay_order_id: string;
+      razorpay_signature: string;
+    },
+  ) {
+    return apiFetch<{ success: true; transaction: ApiTransaction }>(
+      "/api/payments/verify-payment",
+      { method: "POST", body: JSON.stringify(body) },
       token,
     );
   },

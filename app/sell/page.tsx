@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { type ListingCategoryOption, listingsApi, usersApi } from "@/lib/api";
+import { type ListingCategoryOption, listingsApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { FALLBACK_LISTING_CATEGORIES } from "@/lib/explore-categories";
 
@@ -238,11 +238,6 @@ export function UploadSkillPage() {
     setPublishError("");
     setPublishing(true);
     try {
-      // Ensure the user has seller role before creating the listing.
-      // Errors here are non-fatal (Dodo may not be configured); the role
-      // upgrade still happens locally.
-      await usersApi.becomeSeller(token).catch(() => {/* ignore */});
-
       const { listing } = await listingsApi.create(token, {
         title: skillName.trim() || "Untitled Skill",
         description: shortDescription.trim(),
@@ -343,6 +338,36 @@ export function UploadSkillPage() {
     () => Object.fromEntries(categoryOptions.map((c) => [c.slug, c.label])),
     [categoryOptions],
   );
+
+  const canAccessUpload = !!user && (user.role === "admin" || user.sellerStatus === "active");
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen flex-col bg-white text-[#0f1222]">
+        <AppNavbar activeTab="sell" maxWidthClass="max-w-[1200px]" />
+        <main className="mx-auto flex w-full max-w-[900px] flex-1 items-center justify-center px-4 py-8 md:px-6">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e5e7eb] border-t-[#0f1222]" />
+        </main>
+      </div>
+    );
+  }
+
+  if (!canAccessUpload) {
+    return (
+      <div className="flex min-h-screen flex-col bg-white text-[#0f1222]">
+        <AppNavbar activeTab="sell" maxWidthClass="max-w-[1200px]" />
+        <main className="mx-auto flex w-full max-w-[900px] flex-1 items-center px-4 py-8 md:px-6">
+          <div className="w-full border border-amber-200 bg-amber-50 px-5 py-5 text-sm text-amber-800">
+            Only admin-approved sellers can upload skills. Submit your seller invite request{" "}
+            <Link href="/sell/invite" className="font-semibold underline">
+              here
+            </Link>
+            .
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-[#0f1222]">

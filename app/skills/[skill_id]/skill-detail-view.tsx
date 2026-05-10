@@ -7,6 +7,27 @@ import { AppNavbar } from "@/components/app-navbar";
 import { type ApiListing, formatBytes, formatPrice, listingsApi, paymentsApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
+declare global {
+  interface Window {
+    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
+
+const RAZORPAY_SCRIPT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
+
+async function loadRazorpayScript(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  if (window.Razorpay) return true;
+  return new Promise((resolve) => {
+    const script = document.createElement("script");
+    script.src = RAZORPAY_SCRIPT_SRC;
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
 function SellerAvatar({
   name,
   avatarUrl,
@@ -125,12 +146,46 @@ export function SkillDetailView({
     setBuying(true);
     setBuyError("");
     try {
-      await paymentsApi.buy(token, listing._id);
+      const checkout = await paymentsApi.createCheckout(token, listing._id);
+      const razorpayLoaded = await loadRazorpayScript();
+      if (!razorpayLoaded || !window.Razorpay) {
+        throw new Error("Failed to load Razorpay checkout.");
+      }
+      const rz = new window.Razorpay({
+        key: checkout.key_id,
+        amount: checkout.amount,
+        currency: checkout.currency,
+        order_id: checkout.order_id,
+        name: "SkillKart",
+        description: listing.title,
+        handler: async (response: Record<string, unknown>) => {
+          try {
+            await paymentsApi.verifyPayment(token, {
+              razorpay_payment_id: String(response.razorpay_payment_id ?? ""),
+              razorpay_order_id: String(response.razorpay_order_id ?? ""),
+              razorpay_signature: String(response.razorpay_signature ?? ""),
+            });
+            refreshListing();
+          } catch (err) {
+            setBuyError(err instanceof Error ? err.message : "Payment verification failed.");
+            confirmDialogRef.current?.showModal();
+          } finally {
+            setBuying(false);
+          }
+        },
+        modal: {
+          ondismiss: () => setBuying(false),
+        },
+        prefill: {
+          name: user?.name ?? "",
+          email: user?.email ?? "",
+        },
+      });
       confirmDialogRef.current?.close();
-      refreshListing();
+      rz.open();
     } catch (err) {
       setBuyError(err instanceof Error ? err.message : "Purchase failed. Please try again.");
-    } finally {
+      confirmDialogRef.current?.showModal();
       setBuying(false);
     }
   };
@@ -206,7 +261,6 @@ export function SkillDetailView({
             <p className="mt-3 text-sm leading-relaxed text-[#5c6178]">
               You are about to purchase this skill for a one-time payment of{" "}
               <span className="font-semibold text-[#0f1222]">{formatPrice(listing.price)}</span>.
-              A transaction record will be created immediately.
             </p>
             {buyError && (
               <p className="mt-3 border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
@@ -226,7 +280,7 @@ export function SkillDetailView({
                 type="button"
                 disabled={buying}
                 onClick={() => void handleConfirmPurchase()}
-                className="w-full border border-black bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1a1d2e] disabled:opacity-60 sm:w-auto"
+                className="w-full cursor-pointer border border-black bg-black px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1a1d2e] disabled:opacity-60 sm:w-auto"
               >
                 {buying ? "Processing…" : `Confirm — ${formatPrice(listing.price)}`}
               </button>
@@ -317,7 +371,7 @@ export function SkillDetailView({
               aria-label={hasAccess ? "Download skill" : `Buy Now for ${formatPrice(listing.price)}`}
               onClick={hasAccess ? handleDownload : isSeller ? undefined : handleBuyNowClick}
               disabled={isSeller && !hasAccess}
-              className="mt-6 flex w-full items-center justify-center gap-2 border border-black bg-black py-3 text-xs font-semibold tracking-[0.15em] text-white hover:bg-[#1a1d2e] disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-6 flex w-full cursor-pointer items-center justify-center gap-2 border border-black bg-black py-3 text-xs font-semibold tracking-[0.15em] text-white hover:bg-[#1a1d2e] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {hasAccess ? (
                 <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
@@ -625,7 +679,7 @@ export function SkillDetailView({
                           </p>
                           <button
                             type="button"
-                            className="mt-1 w-full border border-black bg-black px-6 py-2.5 text-xs font-semibold tracking-[0.14em] text-white hover:bg-[#1a1d2e]"
+                            className="mt-1 w-full cursor-pointer border border-black bg-black px-6 py-2.5 text-xs font-semibold tracking-[0.14em] text-white hover:bg-[#1a1d2e]"
                             onClick={handleBuyNowClick}
                           >
                             PURCHASE — {formatPrice(listing.price)}
