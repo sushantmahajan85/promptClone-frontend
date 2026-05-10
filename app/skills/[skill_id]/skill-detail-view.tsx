@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNavbar } from "@/components/app-navbar";
+import { OpenInCoworkButton } from "@/components/OpenInCoworkButton";
 import { type ApiListing, formatBytes, formatPrice, listingsApi, paymentsApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -198,6 +199,11 @@ export function SkillDetailView({
   // API omits fileUrl for users without access.
   const hasAccess = accessChecked && !!listing.fileUrl;
   const isSeller = !!(user && listing.sellerId._id === user._id);
+  /** Buyers get file URLs only after purchase; sellers may also have access without buying. */
+  const hasPurchased = hasAccess && !isSeller;
+  const hasClaudeSupport = listing.llmCompatibility.some(
+    (agent) => agent.trim().toLowerCase() === "claude",
+  );
 
   // ─── Media derivations ────────────────────────────────────────────────────
   const manifestFiles = listing.packageManifest?.files ?? [];
@@ -222,6 +228,7 @@ export function SkillDetailView({
   // ─── Dynamic file viewer ──────────────────────────────────────────────────
   // Build tab list from manifest text files (up to 5). No fake defaults.
   const manifestTextFiles = manifestFiles.filter((f) => isTextFile(f.path));
+  const skillPromptManifestFile = manifestFiles.find((f) => /(^|\/)skills?\.md$/i.test(f.path));
   const displayTabs = manifestTextFiles.slice(0, 5).map((f) => f.path);
   const fileTree = manifestFiles.map((f) => f.path);
   const hasPackage = manifestFiles.length > 0;
@@ -239,6 +246,31 @@ export function SkillDetailView({
     demoImages.length === 0 &&
     (demoVideos.length === 0 || (demoVideos.length === 1 && !!primaryHeroVideo)) &&
     manifestImages.length === 0;
+
+  useEffect(() => {
+    if (!hasPurchased || !hasClaudeSupport || !skillPromptManifestFile) return;
+    if (fileContents[skillPromptManifestFile.path] !== undefined) return;
+    void fetchFileContent(skillPromptManifestFile.path, skillPromptManifestFile.url);
+  }, [hasPurchased, hasClaudeSupport, skillPromptManifestFile, fileContents, fetchFileContent]);
+
+  const coworkSkillPrompt = useMemo(() => {
+    const promptFromSkillFile = skillPromptManifestFile
+      ? fileContents[skillPromptManifestFile.path]
+      : undefined;
+    if (promptFromSkillFile && !promptFromSkillFile.startsWith("// Could not load")) {
+      return promptFromSkillFile;
+    }
+    const body = listing.description?.trim() || listing.shortDescription?.trim() || "";
+    const lines = [`# ${listing.title}`];
+    if (body) lines.push("", body);
+    return lines.join("\n");
+  }, [
+    fileContents,
+    listing.title,
+    listing.description,
+    listing.shortDescription,
+    skillPromptManifestFile,
+  ]);
 
   return (
     <div className="flex min-h-screen flex-col bg-white pb-28 text-[#0f1222]">
@@ -384,6 +416,11 @@ export function SkillDetailView({
               )}
               {hasAccess ? "Download skill" : isSeller ? "Your listing" : "Buy Now"}
             </button>
+            {hasPurchased && hasClaudeSupport ? (
+              <div className="mt-3">
+                <OpenInCoworkButton skillName={listing.title} skillPrompt={coworkSkillPrompt} />
+              </div>
+            ) : null}
           </div>
         </div>
 
