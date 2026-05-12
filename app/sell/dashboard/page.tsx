@@ -165,7 +165,7 @@ const emptyDashboard: SellerDashboardPayload = {
 };
 
 export default function SellerDashboardPage() {
-  const { token, user, loading: authLoading } = useAuth();
+  const { token, loading: authLoading } = useAuth();
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState("");
   const [paymentDetails, setPaymentDetails] =
@@ -409,21 +409,12 @@ export default function SellerDashboardPage() {
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
             Seller Dashboard
           </h1>
-          {user?.sellerStatus === "active" ? (
-            <Link
-              href="/sell/upload"
-              className="border border-black bg-black px-4 py-2 text-xs font-semibold tracking-wide text-white"
-            >
-              Upload New Skill
-            </Link>
-          ) : (
-            <Link
-              href="/sell/invite"
-              className="border border-black bg-black px-4 py-2 text-xs font-semibold tracking-wide text-white"
-            >
-              Request Seller Access
-            </Link>
-          )}
+          <Link
+            href="/sell/upload"
+            className="border border-black bg-black px-4 py-2 text-xs font-semibold tracking-wide text-white"
+          >
+            Upload New Skill
+          </Link>
         </div>
         <p className="mt-2 text-sm text-[#5c6178]">
           Track how much you have earned from all published skills till date.
@@ -442,15 +433,6 @@ export default function SellerDashboardPage() {
               sign in
             </Link>{" "}
             to view your seller dashboard.
-          </div>
-        )}
-        {!authLoading && !!token && user?.sellerStatus !== "active" && (
-          <div className="mt-8 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Your account is not approved for selling yet. Submit your seller invite request{" "}
-            <Link href="/sell/invite" className="font-semibold underline">
-              here
-            </Link>
-            .
           </div>
         )}
 

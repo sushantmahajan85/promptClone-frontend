@@ -339,31 +339,12 @@ export function UploadSkillPage() {
     [categoryOptions],
   );
 
-  const canAccessUpload = !!user && (user.role === "admin" || user.sellerStatus === "active");
-
   if (authLoading) {
     return (
       <div className="flex min-h-screen flex-col bg-white text-[#0f1222]">
         <AppNavbar activeTab="sell" maxWidthClass="max-w-[1200px]" />
         <main className="mx-auto flex w-full max-w-[900px] flex-1 items-center justify-center px-4 py-8 md:px-6">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#e5e7eb] border-t-[#0f1222]" />
-        </main>
-      </div>
-    );
-  }
-
-  if (!canAccessUpload) {
-    return (
-      <div className="flex min-h-screen flex-col bg-white text-[#0f1222]">
-        <AppNavbar activeTab="sell" maxWidthClass="max-w-[1200px]" />
-        <main className="mx-auto flex w-full max-w-[900px] flex-1 items-center px-4 py-8 md:px-6">
-          <div className="w-full border border-amber-200 bg-amber-50 px-5 py-5 text-sm text-amber-800">
-            Only admin-approved sellers can upload skills. Submit your seller invite request{" "}
-            <Link href="/sell/invite" className="font-semibold underline">
-              here
-            </Link>
-            .
-          </div>
         </main>
       </div>
     );
