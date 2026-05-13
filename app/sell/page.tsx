@@ -5,6 +5,8 @@ import { zipSync } from "fflate";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { type ListingCategoryOption, listingsApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -44,17 +46,14 @@ function validateDemoMediaFile(file: File): string | null {
 }
 
 const AGENT_OPTIONS = [
-  "ChatGPT",
-  "Claude",
-  "Gemini",
-  "Microsoft Copilot",
-  "Perplexity",
-  "Cursor Agent",
-  "GitHub Copilot Agent",
-  "Meta AI",
-  "Grok",
-  "Mistral Le Chat",
+  "ChatGPT Codex",
+  "Claude Code",
+  "Claude Cowork",
+  "Cursor",
+  "Windsurf",
 ] as const;
+
+
 
 function stepCircleClasses(active: boolean, done: boolean): string {
   if (active) return "bg-black text-white";
@@ -88,6 +87,7 @@ export function UploadSkillPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [supportedAgents, setSupportedAgents] = useState<string[]>([]);
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
+  const [connectorsList, setConnectorsList] = useState("");
   const agentPickerRef = useRef<HTMLDivElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [folderName, setFolderName] = useState("");
@@ -238,6 +238,11 @@ export function UploadSkillPage() {
     setPublishError("");
     setPublishing(true);
     try {
+      const parsedConnectors = connectorsList
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
       const { listing } = await listingsApi.create(token, {
         title: skillName.trim() || "Untitled Skill",
         description: shortDescription.trim(),
@@ -248,6 +253,7 @@ export function UploadSkillPage() {
         tags,
         status: "draft",
         categories: categorySlugs.length > 0 ? categorySlugs : undefined,
+        connectors: parsedConnectors.length > 0 ? parsedConnectors : undefined,
       });
 
       // Determine the file to upload:
@@ -415,12 +421,12 @@ export function UploadSkillPage() {
                 <span className="text-[10px] font-bold tracking-[0.12em] text-[#6b7280]">
                   SHORT DESCRIPTION
                 </span>
-                <input
-                  type="text"
+                <textarea
+                  rows={7}
                   value={shortDescription}
                   onChange={(e) => setShortDescription(e.target.value)}
-                  placeholder="One-line summary of what this skill does"
-                  className="mt-2 w-full border border-[#e5e7eb] bg-white px-3 py-2.5 font-mono text-sm text-[#0f1222] outline-none placeholder:text-[#b4b8c9] focus:border-[#2563eb]/50"
+                  placeholder="Describe what this skill does, who it's for, and what problems it solves…"
+                  className="mt-2 w-full resize-y border border-[#e5e7eb] bg-white px-3 py-2.5 font-mono text-sm text-[#0f1222] outline-none placeholder:text-[#b4b8c9] focus:border-[#2563eb]/50"
                 />
               </label>
               <label className="mt-4 block">
@@ -595,6 +601,29 @@ export function UploadSkillPage() {
                 </p>
               </div>
 
+              {/* MCP / Connectors — always optional */}
+              <div className="mt-5">
+                <label htmlFor="connectors-input">
+                  <span className="text-[10px] font-bold tracking-[0.12em] text-[#6b7280]">
+                    MCP CONNECTORS{" "}
+                    <span className="font-normal normal-case tracking-normal text-[#9aa0b5]">
+                      (optional)
+                    </span>
+                  </span>
+                  <input
+                    id="connectors-input"
+                    type="text"
+                    value={connectorsList}
+                    onChange={(e) => setConnectorsList(e.target.value)}
+                    placeholder="e.g. GitHub MCP, filesystem connector, Slack MCP"
+                    className="mt-2 w-full border border-[#e5e7eb] bg-white px-3 py-2.5 text-sm text-[#0f1222] outline-none placeholder:text-[#b4b8c9] focus:border-[#2563eb]/50"
+                  />
+                </label>
+                <p className="mt-1 text-[11px] text-[#9aa0b5]">
+                  Comma-separated. Leave blank if your skill runs standalone. Shown on the listing so buyers know what to set up.
+                </p>
+              </div>
+
               <div className="mt-6 border-t border-[#e5e7eb] pt-6">
                 <span className="text-[10px] font-bold tracking-[0.12em] text-[#6b7280]">
                   CATEGORIES
@@ -758,11 +787,26 @@ export function UploadSkillPage() {
                   <span className="h-2.5 w-2.5 rounded-full bg-[#22c55e]" />
                 </div>
               </div>
-              <div className="max-h-[340px] overflow-y-auto p-5 font-mono text-xs leading-relaxed text-[#374151]">
+              <div className="max-h-[340px] overflow-y-auto p-5 text-sm leading-relaxed text-[#374151]">
                 {skillsMdContent !== null ? (
-                  <pre className="whitespace-pre-wrap break-words text-[#374151]">
-                    {skillsMdContent}
-                  </pre>
+                  <div className="prose prose-sm max-w-none
+                    prose-headings:font-semibold prose-headings:text-[#111827] prose-headings:mt-5 prose-headings:mb-2
+                    prose-h1:text-xl prose-h2:text-base prose-h3:text-sm
+                    prose-p:text-[#374151] prose-p:my-2
+                    prose-a:text-[#2563eb] prose-a:no-underline hover:prose-a:underline
+                    prose-strong:text-[#111827] prose-strong:font-semibold
+                    prose-code:bg-[#f3f4f6] prose-code:text-[#e11d48] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs prose-code:font-mono prose-code:before:content-none prose-code:after:content-none
+                    prose-pre:bg-[#1e1e2e] prose-pre:text-[#cdd6f4] prose-pre:rounded-lg prose-pre:p-4 prose-pre:overflow-x-auto prose-pre:text-xs
+                    prose-blockquote:border-l-4 prose-blockquote:border-[#2563eb] prose-blockquote:pl-4 prose-blockquote:text-[#6b7280] prose-blockquote:not-italic prose-blockquote:my-3
+                    prose-ul:my-2 prose-ul:pl-5 prose-li:my-0.5 prose-li:marker:text-[#9ca3af]
+                    prose-ol:my-2 prose-ol:pl-5
+                    prose-hr:border-[#e5e7eb] prose-hr:my-4
+                    prose-table:text-xs prose-th:bg-[#f9fafb] prose-th:text-[#374151] prose-td:border-[#e5e7eb]
+                  ">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {skillsMdContent}
+                    </ReactMarkdown>
+                  </div>
                 ) : (
                   <>
                     <h2 className="text-base font-semibold text-[#111827]">

@@ -49,6 +49,8 @@ export type ApiListing = {
   llmCompatibility: string[];
   tags: string[];
   categories?: string[];
+  /** MCP / tool connectors required to run this skill. */
+  connectors?: string[];
   verified: boolean;
   fileUrl?: string;
   fileSizeBytes?: number;
@@ -230,6 +232,8 @@ export const listingsApi = {
       status: "draft";
       /** Explore taxonomy slugs; send 1–2 entries (backend may store primary + optional secondary). */
       categories?: string[];
+      /** MCP / tool connectors required to run this skill (e.g. ["GitHub MCP", "filesystem connector"]). */
+      connectors?: string[];
     },
   ) {
     return apiFetch<{ success: true; listing: ApiListing }>(
