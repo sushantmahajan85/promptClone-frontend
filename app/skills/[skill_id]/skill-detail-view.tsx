@@ -560,7 +560,7 @@ export function SkillDetailView({
             <p className="font-mono text-[10px] tracking-[0.2em] text-[#9aa0b5]">[ SCREENSHOTS ]</p>
             <div className={`mt-3 grid gap-3 ${allDemoImages.length === 1 ? "" : "sm:grid-cols-2"}`}>
               {allDemoImages.map((media) => (
-                <div key={"url" in media ? media.url : media.path} className="overflow-hidden rounded-lg border border-[#e5e7eb]">
+                <div key={"path" in media ? media.path : media.url} className="overflow-hidden rounded-lg border border-[#e5e7eb]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={media.url}
