@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { type ApiListing, formatPrice, listingsApi } from "@/lib/api";
+import { type ApiListing, formatPrice, listingsApi, usersApi } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { getListingThumbnailUrl } from "@/lib/listing-visuals";
 
 function StarRating({ rating, count }: Readonly<{ rating: number; count: number }>) {
@@ -64,7 +65,15 @@ function SkeletonCard() {
   );
 }
 
-function FeaturedCard({ listing }: Readonly<{ listing: ApiListing }>) {
+function FeaturedCard({
+  listing,
+  ownedIds,
+}: Readonly<{ listing: ApiListing; ownedIds: ReadonlySet<string> }>) {
+  const { user } = useAuth();
+  const isSeller = !!user && user._id === listing.sellerId?._id;
+  const isOwned  = ownedIds.has(listing._id);
+  const showBuy  = !isSeller && !isOwned;
+
   const thumb = getListingThumbnailUrl(listing);
   const sellerName = listing.sellerId?.name?.trim() || "Unknown";
   const pill = listing.categoryLabel ?? listing.category ?? null;
@@ -154,11 +163,15 @@ function FeaturedCard({ listing }: Readonly<{ listing: ApiListing }>) {
                 {formatPrice(listing.price)}
               </span>
               <Link
-                href={`/skills/${listing._id}#skill-purchase-btn`}
-                className="relative z-[2] rounded-lg bg-[#2563eb] px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-[#1d4ed8]"
+                href={showBuy ? `/skills/${listing._id}#skill-purchase-btn` : `/skills/${listing._id}`}
+                className={`relative z-[2] rounded-lg px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                  showBuy
+                    ? "bg-[#2563eb] text-white hover:bg-[#1d4ed8]"
+                    : "border border-[#d1d5db] bg-white text-[#374151] hover:bg-[#f9fafb]"
+                }`}
                 onClick={(e) => e.stopPropagation()}
               >
-                Buy
+                {showBuy ? "Buy" : "Details"}
               </Link>
             </div>
           </div>
@@ -206,8 +219,10 @@ const FALLBACK_LISTINGS: ApiListing[] = [
 ];
 
 export function FeaturedListings() {
+  const { token } = useAuth();
   const [listings, setListings] = useState<ApiListing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ownedIds, setOwnedIds] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
     listingsApi
@@ -220,6 +235,15 @@ export function FeaturedListings() {
       .catch(() => setListings(FALLBACK_LISTINGS))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!token) { setOwnedIds(new Set()); return; }
+    let cancelled = false;
+    usersApi.getMyPurchases(token).then(({ listings: owned }) => {
+      if (!cancelled) setOwnedIds(new Set(owned.map((l) => l._id)));
+    }).catch(() => { /* silently ignore */ });
+    return () => { cancelled = true; };
+  }, [token]);
 
   if (loading) {
     return (
@@ -234,7 +258,7 @@ export function FeaturedListings() {
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {listings.map((listing) => (
-        <FeaturedCard key={listing._id} listing={listing} />
+        <FeaturedCard key={listing._id} listing={listing} ownedIds={ownedIds} />
       ))}
     </div>
   );

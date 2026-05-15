@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useRef } from "react";
 
 import { type ApiListing, formatPrice } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { getFirstDemoVideo, getListingThumbnailUrl } from "@/lib/listing-visuals";
 
 export type ExploreListingCardProps = Readonly<{
@@ -11,6 +12,8 @@ export type ExploreListingCardProps = Readonly<{
   view: "grid" | "list";
   /** Resolved human label for `listing.category` slug (from backend category list). */
   categoryLabel?: string;
+  /** Set of listing IDs the current user already owns. */
+  ownedIds?: ReadonlySet<string>;
 }>;
 
 function SellerAvatarSm({
@@ -139,7 +142,12 @@ function CardMedia({
   );
 }
 
-export function ExploreListingCard({ listing, view, categoryLabel }: ExploreListingCardProps) {
+export function ExploreListingCard({ listing, view, categoryLabel, ownedIds }: ExploreListingCardProps) {
+  const { user } = useAuth();
+  const isSeller = !!user && user._id === listing.sellerId?._id;
+  const isOwned  = ownedIds?.has(listing._id) ?? false;
+  const showBuy  = !isSeller && !isOwned;
+
   const sellerName = listing.sellerId?.name?.trim() || "Unknown";
   const handle = `@${sellerName.toLowerCase().replaceAll(/\s+/g, "_")}`;
   const purchases = listing.purchaseCount;
@@ -187,11 +195,15 @@ export function ExploreListingCard({ listing, view, categoryLabel }: ExploreList
             {formatPrice(listing.price)}
           </span>
           <Link
-            href={`/skills/${listing._id}#skill-purchase-btn`}
-            className="relative z-[2] rounded-md bg-[#2563eb] px-2.5 py-1 text-[11px] font-semibold text-white outline-none transition-colors hover:bg-[#1d4ed8] focus-visible:ring-2 focus-visible:ring-[#2563eb]/40"
+            href={showBuy ? `/skills/${listing._id}#skill-purchase-btn` : `/skills/${listing._id}`}
+            className={`relative z-[2] rounded-md px-2.5 py-1 text-[11px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#2563eb]/40 ${
+              showBuy
+                ? "bg-[#2563eb] text-white hover:bg-[#1d4ed8]"
+                : "border border-[#d1d5db] bg-white text-[#374151] hover:bg-[#f9fafb]"
+            }`}
             onClick={(e) => e.stopPropagation()}
           >
-            Buy
+            {showBuy ? "Buy" : "Details"}
           </Link>
         </div>
       </div>

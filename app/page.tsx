@@ -66,7 +66,7 @@ export default function Home() {
   return (
     <main className="bg-white text-[#0f1222]">
 
-      {/* ── Hero ────────────────────────────────────────────────────────────── */}
+      {/* -- Hero -------------------------------------------------------------- */}
       <section className="relative overflow-hidden bg-[#fafbff] pb-16 pt-6 sm:pb-20 sm:pt-8">
         <div
           className="pointer-events-none absolute inset-0 [background-image:linear-gradient(to_right,rgba(15,18,34,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,18,34,0.04)_1px,transparent_1px)] [background-size:56px_56px]"
@@ -154,7 +154,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Categories ──────────────────────────────────────────────────────── */}
+      {/* -- Categories -------------------------------------------------------- */}
       <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-lg font-semibold tracking-tight text-[#0f1222]">Browse by category</h2>
@@ -165,7 +165,7 @@ export default function Home() {
         <HomeCategoryGrid />
       </section>
 
-      {/* ── Featured Skills ─────────────────────────────────────────────────── */}
+      {/* -- Featured Skills --------------------------------------------------- */}
       <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6 sm:pb-20">
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -192,7 +192,7 @@ export default function Home() {
         <FeaturedListings />
       </section>
 
-      {/* ── How it works ────────────────────────────────────────────────────── */}
+      {/* -- How it works ------------------------------------------------------ */}
       <section className="border-y border-[#eef0f8] bg-[#fafbff] py-16 sm:py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="mx-auto max-w-xl text-center">
@@ -233,7 +233,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── Seller CTA ──────────────────────────────────────────────────────── */}
+      {/* -- Seller CTA -------------------------------------------------------- */}
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
         <div className="overflow-hidden rounded-2xl bg-[#0f1222] px-8 py-12 sm:px-12">
           <div className="grid gap-8 md:grid-cols-2 md:items-center">
@@ -281,11 +281,11 @@ export default function Home() {
               </p>
               <div className="space-y-2.5 font-mono text-sm text-[#c1c8e4]">
                 <p>
-                  ├─ <span className="rounded bg-[#2563eb]/20 px-2 py-0.5 text-[#7eb3ff]">skills.md</span>
+                  ├- <span className="rounded bg-[#2563eb]/20 px-2 py-0.5 text-[#7eb3ff]">skills.md</span>
                   <span className="ml-3 text-[#4a5580] text-xs">← docs &amp; contract</span>
                 </p>
-                <p>├─ handler.js <span className="ml-3 text-[#4a5580] text-xs">← logic</span></p>
-                <p>└─ config.json <span className="ml-3 text-[#4a5580] text-xs">← settings</span></p>
+                <p>├- handler.js <span className="ml-3 text-[#4a5580] text-xs">← logic</span></p>
+                <p>└- config.json <span className="ml-3 text-[#4a5580] text-xs">← settings</span></p>
               </div>
               <div className="mt-6 flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 p-3">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20">

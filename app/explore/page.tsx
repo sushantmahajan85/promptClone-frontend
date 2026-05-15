@@ -11,11 +11,13 @@ import {
   type ListingCategoryOption,
   type ListingsSortBy,
   listingsApi,
+  usersApi,
 } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { iconForCategory } from "@/lib/category-icons";
 import { FALLBACK_LISTING_CATEGORIES } from "@/lib/explore-categories";
 
-// ── Category metadata ─────────────────────────────────────────────────────────
+// -- Category metadata ---------------------------------------------------------
 
 type CategoryMeta = {
   emoji: string;
@@ -45,7 +47,7 @@ const SORT_OPTIONS: ReadonlyArray<{ value: ListingsSortBy; label: string }> = [
 
 const SKELETON_IDS = ["sk-a", "sk-b", "sk-c", "sk-d", "sk-e", "sk-f", "sk-g", "sk-h"] as const;
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
+// -- Sub-components -------------------------------------------------------------
 
 function IconGrid({ active }: Readonly<{ active: boolean }>) {
   return (
@@ -117,10 +119,11 @@ function EmptyState({ search, category }: Readonly<{ search: string; category: s
   );
 }
 
-// ── Main page ──────────────────────────────────────────────────────────────────
+// -- Main page ------------------------------------------------------------------
 
 function ExplorePageInner() {
   const searchParams = useSearchParams();
+  const { token } = useAuth();
   const [view, setView]           = useState<"grid" | "list">("grid");
   const [page, setPage]           = useState(1);
   const [search, setSearch]       = useState(() => searchParams.get("q") ?? "");
@@ -136,6 +139,7 @@ function ExplorePageInner() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState("");
+  const [ownedIds, setOwnedIds]   = useState<ReadonlySet<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -150,6 +154,15 @@ function ExplorePageInner() {
       });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    if (!token) { setOwnedIds(new Set()); return; }
+    let cancelled = false;
+    usersApi.getMyPurchases(token).then(({ listings: owned }) => {
+      if (!cancelled) setOwnedIds(new Set(owned.map((l) => l._id)));
+    }).catch(() => { /* silently ignore */ });
+    return () => { cancelled = true; };
+  }, [token]);
 
   const labelBySlug = useMemo(
     () => Object.fromEntries(categoryOptions.map((c) => [c.slug, c.label])),
@@ -200,7 +213,7 @@ function ExplorePageInner() {
     <div className="flex min-h-screen flex-col bg-[#f9fafc] text-[#0f1222]">
       <AppNavbar activeTab="explore" />
 
-      {/* ── Page header ──────────────────────────────────────────────────── */}
+      {/* -- Page header ---------------------------------------------------- */}
       <div className="border-b border-[#eceef5] bg-white">
         <div className="mx-auto max-w-[1400px] px-4 py-6 md:px-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -233,7 +246,7 @@ function ExplorePageInner() {
             </div>
           </div>
 
-          {/* ── Category tabs ─────────────────────────────────────────────── */}
+          {/* -- Category tabs ----------------------------------------------- */}
           <div className="relative mt-5">
             <div
               className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-white to-transparent sm:hidden"
@@ -282,7 +295,7 @@ function ExplorePageInner() {
         </div>
       </div>
 
-      {/* ── Content ──────────────────────────────────────────────────────── */}
+      {/* -- Content -------------------------------------------------------- */}
       <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 md:px-6">
         <main className="min-w-0">
 
@@ -397,6 +410,7 @@ function ExplorePageInner() {
                     listing={listing}
                     view={view}
                     categoryLabel={listing.category ? labelBySlug[listing.category] : undefined}
+                    ownedIds={ownedIds}
                   />
                 ))
               : null

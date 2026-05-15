@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SaaS Product Launch — SkillKart</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #08080C;
+      --surface:   #111116;
+      --surface2:  #18181F;
+      --border:    #1F1F28;
+      --border2:   #2A2A36;
+      --text:      #F0F0F6;
+      --muted:     #8A8A9A;
+      --subtle:    #3E3E50;
+      --accent:    #F0A500;
+      --accent-dim:#7A5000;
+      --green:     #22C55E;
+      --blue:      #60A5FA;
+      --tag-bg:    #1A1A24;
+      --radius:    12px;
+      --radius-lg: 20px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── NAV ── */
+    .nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(8,8,12,0.88);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 60px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 8px;
+      font-family: 'Syne', sans-serif; font-weight: 700;
+      font-size: 17px; color: var(--text); text-decoration: none;
+    }
+    .nav-logo span {
+      background: linear-gradient(135deg, #F0A500, #FF6B00);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .nav-links { display: flex; align-items: center; gap: 24px; }
+    .nav-links a {
+      color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 400;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      background: var(--accent); color: #000 !important;
+      font-weight: 600 !important; font-size: 13px !important;
+      padding: 7px 18px; border-radius: 8px;
+      transition: opacity 0.2s !important;
+    }
+    .nav-cta:hover { opacity: 0.88; }
+
+    /* ── BREADCRUMB ── */
+    .breadcrumb {
+      padding: 18px 32px 0;
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: var(--muted);
+    }
+    .breadcrumb a { color: var(--muted); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--text); }
+    .breadcrumb span { color: var(--subtle); }
+
+    /* ── HERO GRID ── */
+    .hero {
+      max-width: 1200px; margin: 0 auto;
+      padding: 28px 32px 56px;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 36px;
+      align-items: start;
+    }
+
+    /* ── LEFT COLUMN ── */
+    .media-stack { display: flex; flex-direction: column; gap: 0; }
+
+    .video-hero {
+      position: relative;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: #000;
+      aspect-ratio: 16/9;
+      border: 1px solid var(--border);
+    }
+    .video-hero video {
+      width: 100%; height: 100%;
+      object-fit: cover; display: block;
+    }
+    .video-badge {
+      position: absolute; top: 14px; left: 14px;
+      background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #fff; font-size: 11px; font-weight: 500; letter-spacing: 0.06em;
+      padding: 4px 10px; border-radius: 20px;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .video-badge::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green); display: block;
+      box-shadow: 0 0 6px var(--green);
+    }
+
+    /* about section */
+    .about { margin-top: 32px; }
+    .section-label {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
+      color: var(--muted); text-transform: uppercase; margin-bottom: 14px;
+    }
+    .about-desc {
+      font-size: 15px; color: var(--muted); line-height: 1.75;
+      max-width: 600px;
+    }
+    .about-desc strong { color: var(--text); font-weight: 500; }
+
+    /* steps */
+    .steps { margin-top: 28px; display: flex; flex-direction: column; gap: 12px; }
+    .step {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 16px 18px; border-radius: var(--radius);
+      background: var(--surface); border: 1px solid var(--border);
+    }
+    .step-num {
+      min-width: 26px; height: 26px; border-radius: 50%;
+      background: var(--surface2); border: 1px solid var(--border2);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
+      color: var(--accent);
+    }
+    .step-text { font-size: 14px; color: var(--muted); line-height: 1.55; }
+    .step-text strong { color: var(--text); display: block; margin-bottom: 2px; }
+
+    /* package */
+    .package { margin-top: 36px; }
+    .file-list {
+      display: flex; flex-direction: column; gap: 8px;
+      margin-top: 14px;
+    }
+    .file-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; border-radius: var(--radius);
+      background: var(--surface); border: 1px solid var(--border);
+      font-size: 13px; color: var(--text);
+    }
+    .file-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+    }
+    .file-icon.md  { background: #1A2540; color: #60A5FA; }
+    .file-icon.mp3 { background: #1A2820; color: #22C55E; }
+    .file-icon.zip { background: #2A1A40; color: #C084FC; }
+    .file-meta { margin-left: auto; font-size: 12px; color: var(--muted); }
+    .package-size {
+      margin-top: 10px; font-size: 12px; color: var(--muted);
+      padding: 8px 14px; background: var(--surface);
+      border-radius: 8px; border: 1px solid var(--border);
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+
+    /* agents & connectors */
+    .agents-row { margin-top: 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .agents-box {
+      padding: 20px; border-radius: var(--radius);
+      background: var(--surface); border: 1px solid var(--border);
+    }
+    .agent-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 20px;
+      background: var(--tag-bg); border: 1px solid var(--border2);
+      font-size: 12px; color: var(--text); margin: 4px 4px 0 0;
+    }
+    .agent-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+    .connector-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 20px;
+      background: rgba(240,165,0,0.08); border: 1px solid rgba(240,165,0,0.2);
+      font-size: 12px; color: var(--accent); margin: 4px 4px 0 0;
+    }
+
+    /* ── RIGHT COLUMN (purchase card) ── */
+    .purchase-card {
+      position: sticky; top: 76px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    .card-cover {
+      position: relative; aspect-ratio: 16/9; overflow: hidden;
+    }
+    .card-cover img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .card-cover-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, transparent 40%, rgba(17,17,22,0.95) 100%);
+    }
+    .card-cover-tag {
+      position: absolute; top: 12px; right: 12px;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 4px 10px; border-radius: 20px;
+      font-size: 11px; color: var(--muted); font-weight: 400;
+    }
+
+    .card-body { padding: 20px; }
+
+    .card-title {
+      font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700;
+      color: var(--text); line-height: 1.3; margin-bottom: 6px;
+    }
+    .card-seller {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: var(--muted); margin-bottom: 18px;
+    }
+    .avatar {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: linear-gradient(135deg, #F0A500, #FF4500);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: #000; flex-shrink: 0;
+    }
+
+    .price-row {
+      display: flex; align-items: baseline; gap: 8px;
+      margin-bottom: 4px;
+    }
+    .price-main {
+      font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800;
+      color: var(--text);
+    }
+    .price-label { font-size: 13px; color: var(--muted); }
+    .price-note { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+
+    .buy-btn {
+      display: block; width: 100%;
+      background: var(--accent);
+      color: #000; font-family: 'Syne', sans-serif;
+      font-size: 15px; font-weight: 700;
+      padding: 14px 20px; border-radius: 10px;
+      border: none; cursor: pointer; text-align: center;
+      text-decoration: none;
+      transition: opacity 0.2s, transform 0.15s;
+      letter-spacing: 0.01em;
+    }
+    .buy-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .buy-btn:active { transform: translateY(0); opacity: 1; }
+
+    .guarantees {
+      margin-top: 14px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .guarantee-item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--muted);
+    }
+    .guarantee-item svg { flex-shrink: 0; color: var(--green); }
+
+    .card-divider {
+      border: none; border-top: 1px solid var(--border);
+      margin: 18px 0;
+    }
+
+    .meta-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .meta-cell { display: flex; flex-direction: column; gap: 2px; }
+    .meta-key { font-size: 11px; color: var(--subtle); text-transform: uppercase; letter-spacing: 0.08em; }
+    .meta-val { font-size: 13px; color: var(--text); font-weight: 500; }
+    .meta-ref { font-family: 'DM Mono', 'Courier New', monospace; font-size: 12px !important; color: var(--muted) !important; }
+
+    .tags-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+    .tag {
+      padding: 4px 10px; border-radius: 20px;
+      background: var(--tag-bg); border: 1px solid var(--border2);
+      font-size: 11px; color: var(--muted);
+    }
+
+    /* ── SECTION DIVIDERS ── */
+    .content-area { max-width: 1200px; margin: 0 auto; padding: 0 32px 80px; }
+
+    /* ── FOOTER ── */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 32px;
+      text-align: center;
+      font-size: 13px; color: var(--subtle);
+    }
+    .footer a { color: var(--muted); text-decoration: none; }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .hero { animation: fadeUp 0.5s ease both; }
+    .purchase-card { animation: fadeUp 0.5s 0.1s ease both; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; }
+      .purchase-card { position: static; }
+      .agents-row { grid-template-columns: 1fr; }
+      .nav { padding: 0 16px; }
+      .hero { padding: 20px 16px 40px; }
+      .breadcrumb { padding: 14px 16px 0; }
+    }
+
+    /* ── MODAL OVERLAY ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 32px; width: 380px;
+      max-width: calc(100vw - 32px);
+      animation: fadeUp 0.25s ease both;
+    }
+    .modal h3 {
+      font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .modal p { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+    .modal-price {
+      font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800;
+      color: var(--accent); margin-bottom: 20px;
+    }
+    .modal-actions { display: flex; gap: 10px; }
+    .modal-cancel {
+      flex: 1; padding: 12px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 8px; color: var(--muted);
+      font-size: 14px; cursor: pointer;
+    }
+    .modal-confirm {
+      flex: 2; padding: 12px;
+      background: var(--accent); border: none;
+      border-radius: 8px; color: #000;
+      font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700;
+      cursor: pointer; transition: opacity 0.2s;
+    }
+    .modal-confirm:hover { opacity: 0.88; }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav class="nav">
+    <a class="nav-logo" href="#">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <rect width="22" height="22" rx="6" fill="#F0A500"/>
+        <path d="M6 16L11 6L16 16" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M8 13H14" stroke="#000" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span>SkillKart</span>
+    </a>
+    <div class="nav-links">
+      <a href="#">Explore</a>
+      <a href="#">Sell</a>
+      <a href="#">My Skills</a>
+      <a href="#" class="nav-cta" onclick="openModal(event)">Buy — $1.00</a>
+    </div>
+  </nav>
+
+  <!-- BREADCRUMB -->
+  <div class="breadcrumb">
+    <a href="#">Explore</a>
+    <span>›</span>
+    <span style="color: var(--muted);">SaaS Product Launch</span>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero">
+
+    <!-- LEFT -->
+    <div class="media-stack">
+
+      <!-- Video hero -->
+      <div class="video-hero">
+        <video
+          src="https://res.cloudinary.com/dqw4zmohn/video/upload/v1778832507/skill-marketplace/demo/6a06d4721f0f1dbf6c1b6f25/bwegfspnuiplrkn7qcxb.mp4"
+          poster="https://res.cloudinary.com/dqw4zmohn/image/upload/v1778832506/skill-marketplace/covers/wsegjzmuahs8wpg5orvq.png"
+          autoplay muted loop playsinline
+          controls
+        ></video>
+        <div class="video-badge">Live Demo</div>
+      </div>
+
+      <!-- About -->
+      <div class="about">
+        <div class="section-label">About this skill</div>
+        <p class="about-desc">
+          Generate a <strong>detailed production script</strong> for SaaS product launch videos.
+          Apply the output to <strong>Higgsfield AI</strong> with the Seedance 2.0 model
+          for cinematic 10–12 second clips — produce up to 4 such videos and stitch
+          them into a complete launch reel.
+        </p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text">
+              <strong>Generate your script</strong>
+              Run this skill to produce a detailed, structured video production script tailored to your SaaS product.
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text">
+              <strong>Feed into Higgsfield AI</strong>
+              Use the Seedance 2.0 model on Higgsfield. Each prompt generates a 10–12 second cinematic clip.
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-text">
+              <strong>Assemble your launch video</strong>
+              Generate up to 4 clips and merge them for a complete, polished launch video — no editing experience needed.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Package -->
+      <div class="package">
+        <div class="section-label">What's included</div>
+        <div class="file-list">
+          <div class="file-item">
+            <div class="file-icon md">📄</div>
+            <div>
+              <div style="font-weight:500;">SKILL.md</div>
+              <div style="font-size:12px;color:var(--muted);">Core skill definition & prompt templates</div>
+            </div>
+            <div class="file-meta">—</div>
+          </div>
+          <div class="file-item">
+            <div class="file-icon mp3">🎵</div>
+            <div>
+              <div style="font-weight:500;">mondamusic-product-launch-review.mp3</div>
+              <div style="font-size:12px;color:var(--muted);">Background music — Product launch</div>
+            </div>
+            <div class="file-meta">—</div>
+          </div>
+          <div class="file-item">
+            <div class="file-icon mp3">🎵</div>
+            <div>
+              <div style="font-weight:500;">the_mountain-product-launch.mp3</div>
+              <div style="font-size:12px;color:var(--muted);">Background music — The Mountain</div>
+            </div>
+            <div class="file-meta">—</div>
+          </div>
+        </div>
+        <div class="package-size">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+          </svg>
+          4.8 MB total download
+        </div>
+      </div>
+
+      <!-- Agents & Connectors -->
+      <div class="agents-row">
+        <div class="agents-box">
+          <div class="section-label" style="margin-bottom:12px;">Supported Agents</div>
+          <span class="agent-chip"><span class="dot"></span>Claude Code</span>
+          <span class="agent-chip"><span class="dot"></span>Claude Cowork</span>
+          <span class="agent-chip"><span class="dot"></span>Cursor</span>
+        </div>
+        <div class="agents-box">
+          <div class="section-label" style="margin-bottom:12px;">MCP Connectors</div>
+          <span class="connector-chip">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+            </svg>
+            Higgsfield
+          </span>
+          <p style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5;">
+            Requires Higgsfield MCP to be configured in your agent environment.
+          </p>
+        </div>
+      </div>
+
+    </div><!-- /left -->
+
+    <!-- RIGHT: Purchase card -->
+    <div class="purchase-card">
+
+      <!-- Cover image -->
+      <div class="card-cover">
+        <img
+          src="https://res.cloudinary.com/dqw4zmohn/image/upload/v1778832506/skill-marketplace/covers/wsegjzmuahs8wpg5orvq.png"
+          alt="SaaS Product Launch cover"
+        />
+        <div class="card-cover-overlay"></div>
+        <div class="card-cover-tag">image-video · social-media</div>
+      </div>
+
+      <div class="card-body">
+
+        <!-- Title + seller -->
+        <div class="card-title">SaaS Product Launch</div>
+        <div class="card-seller">
+          <div class="avatar">D</div>
+          <span>by <strong style="color:var(--text);">deadpool</strong></span>
+        </div>
+
+        <!-- Price -->
+        <div class="price-row">
+          <span class="price-main">$1.00</span>
+          <span class="price-label">USD</span>
+        </div>
+        <div class="price-note">One-time payment · instant download</div>
+
+        <!-- CTA -->
+        <button class="buy-btn" onclick="openModal(event)">
+          Get This Skill — $1.00
+        </button>
+
+        <!-- Guarantees -->
+        <div class="guarantees">
+          <div class="guarantee-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            One-time payment, no subscriptions ever
+          </div>
+          <div class="guarantee-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Instant download after purchase
+          </div>
+          <div class="guarantee-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Skill works or we'll refund you
+          </div>
+        </div>
+
+        <hr class="card-divider" />
+
+        <!-- Meta -->
+        <div class="meta-grid">
+          <div class="meta-cell">
+            <span class="meta-key">Ref</span>
+            <span class="meta-val meta-ref">0x8FAC9597</span>
+          </div>
+          <div class="meta-cell">
+            <span class="meta-key">Size</span>
+            <span class="meta-val">4.8 MB</span>
+          </div>
+          <div class="meta-cell">
+            <span class="meta-key">Pricing</span>
+            <span class="meta-val">One-time</span>
+          </div>
+          <div class="meta-cell">
+            <span class="meta-key">Files</span>
+            <span class="meta-val">3 files</span>
+          </div>
+        </div>
+
+        <!-- Tags -->
+        <div class="tags-row">
+          <span class="tag">saas</span>
+          <span class="tag">ai</span>
+          <span class="tag">product launch</span>
+          <span class="tag">video generation</span>
+          <span class="tag">seedance 2.0</span>
+        </div>
+
+      </div><!-- /card-body -->
+    </div><!-- /purchase-card -->
+
+  </div><!-- /hero -->
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <span>© 2025 SkillKart · </span>
+    <a href="#">Terms</a> · <a href="#">Privacy</a> · <a href="#">Support</a>
+  </footer>
+
+  <!-- PURCHASE MODAL -->
+  <div class="modal-overlay" id="purchaseModal" onclick="closeModalOutside(event)">
+    <div class="modal">
+      <h3>Confirm Purchase</h3>
+      <p>You are about to purchase <strong>SaaS Product Launch</strong> for a one-time payment.</p>
+      <div class="modal-price">$1.00</div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+        <button class="modal-confirm" onclick="confirmPurchase()">Confirm — $1.00</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openModal(e) {
+      e.preventDefault();
+      document.getElementById('purchaseModal').classList.add('open');
+    }
+    function closeModal() {
+      document.getElementById('purchaseModal').classList.remove('open');
+    }
+    function closeModalOutside(e) {
+      if (e.target === document.getElementById('purchaseModal')) closeModal();
+    }
+    function confirmPurchase() {
+      // hook up real payment flow here
+      alert('Purchase confirmed! Your download is being prepared.');
+      closeModal();
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeModal();
+    });
+  </script>
+
+</body>
+</html>
