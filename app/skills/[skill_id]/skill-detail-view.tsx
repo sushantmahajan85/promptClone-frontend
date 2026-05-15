@@ -299,23 +299,22 @@ export function SkillDetailView({
                     live_demo.mp4
                   </span>
                 </div>
-                <div className="aspect-video w-full">
-                  <video
-                    className="h-full w-full object-cover"
-                    controls muted playsInline preload="metadata"
-                    poster={listing.coverImageUrl ?? undefined}
-                  >
-                    <source
-                      src={primaryHeroVideo.url}
-                      type={
-                        "resourceType" in primaryHeroVideo && primaryHeroVideo.resourceType === "video"
-                          ? "video/mp4"
-                          : "video/mp4"
-                      }
-                    />
-                    <track kind="captions" srcLang="en" label="English captions" />
-                  </video>
-                </div>
+                <video
+                  className="block w-full"
+                  style={{ maxHeight: "80vh" }}
+                  controls muted playsInline preload="metadata"
+                  poster={listing.coverImageUrl ?? undefined}
+                >
+                  <source
+                    src={primaryHeroVideo.url}
+                    type={
+                      "resourceType" in primaryHeroVideo && primaryHeroVideo.resourceType === "video"
+                        ? "video/mp4"
+                        : "video/mp4"
+                    }
+                  />
+                  <track kind="captions" srcLang="en" label="English captions" />
+                </video>
               </div>
             )}
 
@@ -334,7 +333,7 @@ export function SkillDetailView({
             {/* Extra demo videos */}
             {demoVideos.slice(1).map((media) => (
               <div key={media.url} className="mt-4 overflow-hidden rounded-2xl border border-[#e5e7eb] bg-black lg:max-w-[50vw]">
-                <video controls preload="metadata" className="aspect-video w-full object-contain">
+                <video controls preload="metadata" className="block w-full" style={{ maxHeight: "80vh" }}>
                   <source src={media.url} type="video/mp4" />
                   <track kind="captions" srcLang="en" label="English captions" />
                 </video>
